@@ -10,11 +10,11 @@
 
 import { json }              from '@sveltejs/kit';
 import type { Cookies }      from '@sveltejs/kit';
-import { AuthError }         from '../services/auth/AuthService';
-import { bus }               from '../framework/services/bus/BusService';
-import type { TokenService } from '../services/auth/TokenService';
-import type { AuthService }  from '../services/auth/AuthService';
-import type { SessionPayload } from '../services/auth/TokenService';
+import { AuthError }         from '$lib/server/services/auth/AuthService';
+import { bus }               from '$lib/server/framework/services/bus/BusService';
+import type { TokenService } from '$lib/server/services/auth/TokenService';
+import type { AuthService }  from '$lib/server/services/auth/AuthService';
+import type { SessionPayload } from '$lib/server/services/auth/TokenService';
 
 // ── handleAuthError ───────────────────────────────────────────────────────────
 // Converts any error thrown by AuthService into a typed JSON response.
@@ -59,38 +59,27 @@ export function handleAuthError(err: unknown): Response {
 //     // session.sid   → DB session ID
 //   }
 
-import { redirect, error } from '@sveltejs/kit'; // Use these instead of json
-
 export async function requireSession(cookies: Cookies): Promise<SessionPayload> {
-  const tokenSvc = bus.get<TokenService>('token');
-  const authSvc  = bus.get<AuthService>('auth');
+  const token = bus.get<TokenService>('token');
+  const raw   = cookies.get(token.cookieName());
 
-  // 1. Safety check: Is the bus actually booted?
-  if (!tokenSvc || !authSvc) {
-    console.error('[auth] Services not found on bus. Is the bus booted?');
-    throw error(503, 'System is starting up... please refresh.');
-  }
-
-  const raw = cookies.get(tokenSvc.cookieName());
-
-  // 2. If no cookie, redirect to login (don't throw JSON)
   if (!raw) {
-    throw redirect(303, '/login');
+    throw json(
+      { ok: false, code: 'AUTH_REQUIRED', message: 'You must be logged in.' },
+      { status: 401 }
+    );
   }
 
   try {
-    return await authSvc.getSession(raw);
-  } catch (err) {
-    console.error("[getSession] JWT Verification failed:", err.message);
-    // 3. ONLY delete cookie if it's a genuine AuthError from the service
-    // This prevents deleting cookies if the DB is just temporarily down.
-    if (err instanceof AuthError && (err.status === 401 || err.status === 403)) {
-      cookies.delete(tokenSvc.cookieName(), { path: '/' });
-      throw redirect(303, '/login');
-    }
-
-    // If it's a 500 or 503, just show the error page so they can refresh
-    throw error(500, 'Session validation failed. Please try again.');
+    const auth = bus.get<AuthService>('auth');
+    return await auth.getSession(raw);
+  } catch {
+    // Clear a broken/expired cookie so the browser stops sending it
+    cookies.delete(token.cookieName(), { path: '/' });
+    throw json(
+      { ok: false, code: 'SESSION_INVALID', message: 'Session expired. Please log in again.' },
+      { status: 401 }
+    );
   }
 }
 

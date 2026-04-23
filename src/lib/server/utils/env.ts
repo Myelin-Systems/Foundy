@@ -1,18 +1,13 @@
-import type { IService } from "../framework/services/IServices.js";
+import type { IService } from '$lib/server/framework/services/IServices';
 import { config } from "dotenv";
 
-// Load variables from .env into process.env
 config();
 
-export function env(key: string, service : IService): string {
-  // process.env will now include variables from your .env file
+export function env(key: string, service: IService): string {
   const value = process.env[key];
-  if (!value) {
-    throw new Error(
-      `[${service.name}] Missing required environment variable: ${key}\n` +
-      `Check your .env file or system environment variables.`
-    );
-  }
-  
+  if (!value) throw new Error(
+    `[${service.name}] Missing required environment variable: ${key}\n` +
+    `Make sure it is set in your .env file.`
+  );
   return value;
 }
