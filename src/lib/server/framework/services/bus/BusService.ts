@@ -24,7 +24,6 @@ export interface RegisterOptions {
   runtime:      ServiceRuntime;
   idleTimeout?: number;    // ms — only for 'on-demand'. default: 300_000 (5 min)
   requires?:    string[];  // service names that must be active before this one
-  tags?:        string[];  // optional tag override
 }
 
 // ── Internal service entry ────────────────────────────────────────────────────
@@ -57,7 +56,6 @@ export class BusService {
             );
         }
 
-        // FIX: actually store the entry in the registry
         this.registry.set(service.name, {
             service,
             options,
@@ -71,6 +69,30 @@ export class BusService {
         return this;
     }
 
+    // ── bootService() — activate a single named service post-boot ────────────────
+    //
+    // Used by adapters that register services during their own init().
+    // Recursively activates dependencies first, then the service itself.
+    // Idempotent — safe to call on an already-active service.
+    //
+    async bootService(name: string): Promise<void> {
+        const entry = this.registry.get(name);
+        if (!entry) {
+            throw new Error(
+                `[${this.name}] SERVICE_NOT_FOUND - "${name}" is not registered.`
+            );
+        }
+
+        if (entry.state === 'active') return;
+
+        // Activate dependencies first, in declared order
+        for (const dep of entry.options.requires ?? []) {
+            await this.bootService(dep);
+        }
+
+        await this.activateEntry(entry);
+    }
+
     // ── Boot ───────────────────────────────────────────────────────────────────
     //
     // Call once in hooks.server.ts.
@@ -78,7 +100,6 @@ export class BusService {
     // registration order.
     //
     async boot(): Promise<void> {
-
         if (this.booted) return;
 
         this.log(null, 'boot', `booting ${this.registry.size} registered services...`);
@@ -93,22 +114,6 @@ export class BusService {
 
         this.booted = true;
         this.log(null, 'boot', `boot complete. ${this.countByState('active')} services active.`);
-    }
-
-    // ── bootService() — activate a single named service post-boot ─────────────
-    //
-    // Used by adapters that register services during their own init().
-    // Safe to call even if already active.
-    //
-    async bootService(name: string): Promise<void> {
-        const entry = this.registry.get(name);
-        if (!entry) {
-            throw new Error(
-                `[${this.name}] SERVICE_NOT_FOUND - "${name}" is not registered.`
-            );
-        }
-        if (entry.state === 'active') return;
-        await this.activateEntry(entry);
     }
 
     // ── get() — sync, assumes service is active ────────────────────────────────
