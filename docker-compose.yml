@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     myelin
+      POSTGRES_PASSWORD: myelin
+      POSTGRES_DB:       myelin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - /app/node_modules   # ← keeps container's node_modules, ignores host's
+    ports:
+      - "5173:5173"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL:      postgres://myelin:myelin@db:5432/myelin
+      DATABASE_PROVIDER: postgres
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
