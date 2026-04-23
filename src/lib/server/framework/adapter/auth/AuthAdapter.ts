@@ -14,11 +14,11 @@
 import type { IAdapter }          from '../IAdapter';
 import type { AdapterSchema }     from '../AdapterSchema';
 import { authSchema }             from './schema';
-import { AuthService }            from '../../../services/auth/AuthService';
-import { TokenService }           from '../../../services/auth/TokenService';
-import { MigrationRunner }        from '../../services/database/MigrationRunner';
-import { bus }                    from '../../services/bus/BusService';
-import type { DataService }       from '../../services/database/DataService';
+import { AuthService }            from '$lib/server/services/auth/AuthService';
+import { TokenService }           from '$lib/server/services/auth/TokenService';
+import { MigrationRunner }        from '$lib/server/framework/services/database/MigrationRunner';
+import { bus }                    from '$lib/server/framework/services/bus/BusService';
+import type { DataService }       from '$lib/server/framework/services/database/DataService';
 
 export interface AuthAdapterConfig {
   jwtSecret:      string;   // process.env.JWT_SECRET
@@ -36,12 +36,10 @@ export class AuthAdapter implements IAdapter {
   constructor(private readonly config: AuthAdapterConfig) {}
 
   async init(): Promise<void> {
-    // 1. Run migrations — creates users + sessions tables if they don't exist
     const db     = bus.get<DataService>('db');
     const runner = new MigrationRunner(db);
     await runner.run([this.schema]);
 
-    // 2. Register TokenService on the bus first — AuthService depends on it
     bus.register(
       new TokenService({
         secret:        this.config.jwtSecret,
@@ -53,18 +51,14 @@ export class AuthAdapter implements IAdapter {
       }
     );
 
-    // 3. Register AuthService — depends on 'db' and 'token'
     bus.register(
       new AuthService(),
       {
         runtime:  'always',
         requires: ['db', 'token'],
-        tags:     ['core', 'auth'],
       }
     );
 
-    // 4. Boot newly registered services
-    await bus.bootService('token');
     await bus.bootService('auth');
   }
 
