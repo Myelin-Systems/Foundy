@@ -5,6 +5,12 @@
 // Reads DATABASE_PROVIDER from .env, picks the right driver,
 // and exposes a clean query API to repositories.
 //
+// This file only orchestrates — all query logic lives in:
+//   drivers/PostgresDriver.ts
+//   drivers/SupabaseDriver.ts
+//   QueryBuilder/PostgresQueryBuilder.ts
+//   QueryBuilder/SupabaseQueryBuilder.ts
+//
 // .env setup:
 //   DATABASE_PROVIDER=postgres
 //   DATABASE_URL=postgres://user:pass@localhost:5432/mydb
@@ -23,7 +29,7 @@ import type { IDataDriver }            from './drivers/IDataDriver';
 import type { IQueryBuilder, QueryResult } from './QueryBuilder/IQueryBuilder';
 import { PostgresDriver }              from './drivers/PostgresDriver';
 import { SupabaseDriver }              from './drivers/SupabaseDriver';
-import { env }                         from '../../../utils/env';  // FIX: correct path
+import { env }                         from '$lib/server/utils/env';
 
 export type DatabaseProvider = 'postgres' | 'supabase';
 
@@ -63,8 +69,8 @@ export class DataService implements IService {
 
     if (provider === 'supabase') {
       this.driver = new SupabaseDriver({
-        url:   env('SUPABASE_URL', this),
-        key:   env('SUPABASE_SERVICE_KEY', this),
+        url:   env('SUPABASE_URL',this),
+        key:   env('SUPABASE_SERVICE_KEY',this),
         debug,
       });
     }
