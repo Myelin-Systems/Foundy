@@ -11,13 +11,39 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+        sleep 3;
+        mc alias set local http://minio:9000 minioadmin minioadmin123;
+        mc mb --ignore-existing local/foundy-media;
+        mc anonymous set public local/foundy-media;
+        echo 'Bucket ready.';
+      "
+
   app:
     build:
       context: .
       dockerfile: Dockerfile.dev
     volumes:
       - .:/app
-      - /app/node_modules   # ← keeps container's node_modules, ignores host's
+      - /app/node_modules
     ports:
       - "5173:5173"
     env_file:
@@ -25,8 +51,17 @@ services:
     environment:
       DATABASE_URL:      postgres://myelin:myelin@db:5432/myelin
       DATABASE_PROVIDER: postgres
+      MINIO_ENDPOINT:    minio
+      MINIO_PORT:        9000
+      MINIO_USE_SSL:     false
+      MINIO_ACCESS_KEY:  minioadmin
+      MINIO_SECRET_KEY:  minioadmin123
+      MINIO_BUCKET:      foundy-media
+      MINIO_PUBLIC_URL:  http://localhost:9000
     depends_on:
       - db
+      - minio
 
 volumes:
   postgres_data:
+  minio_data:
