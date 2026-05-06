@@ -1,50 +1,39 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  let email = $state(''), password = $state(''), error = $state(''), loading = $state(false);
-  async function login() {
-    if (!email || !password) { error = 'Please fill in all fields.'; return; }
-    loading = true; error = '';
+  let fullName=$state(''), email=$state(''), password=$state(''), error=$state(''), loading=$state(false);
+  async function register() {
+    if (!fullName||!email||!password) { error='Please fill in all fields.'; return; }
+    if (password.length<8) { error='Password must be at least 8 characters.'; return; }
+    loading=true; error='';
     try {
-      const res  = await fetch('/api/auth/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const res  = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fullName,email,password}) });
       const data = await res.json();
-      if (!data.ok) { error = data.message; return; }
+      if (!data.ok) { error=data.message; return; }
       goto('/dashboard/org/sites');
-    } catch { error = 'Network error.'; }
-    finally  { loading = false; }
+    } catch { error='Network error.'; }
+    finally { loading=false; }
   }
 </script>
-
-<svelte:head><title>Sign in — Foundy</title></svelte:head>
-
+<svelte:head><title>Create account — Foundy</title></svelte:head>
 <div class="page">
-  <div class="grid-bg"></div>
-  <div class="glow"></div>
+  <div class="grid-bg"></div><div class="glow"></div>
   <div class="card">
     <div class="logo"><div class="logo-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><span>Foundy</span></div>
-    <h1 class="title">Welcome back</h1>
-    <p class="sub">Sign in to your workspace</p>
+    <h1 class="title">Create your account</h1>
+    <p class="sub">CMS + Social. One place.</p>
     {#if error}<div class="err">{error}</div>{/if}
     <div class="form">
-      <div class="field">
-        <label class="field-label" for="em">Email</label>
-        <input id="em" class="input" type="email" placeholder="you@company.com" autocomplete="email" bind:value={email} oninput={() => error=''} disabled={loading} />
-      </div>
-      <div class="field">
-        <label class="field-label" for="pw">Password</label>
-        <input id="pw" class="input" type="password" placeholder="••••••••" autocomplete="current-password" bind:value={password} oninput={() => error=''} disabled={loading} onkeydown={(e) => e.key==='Enter'&&login()} />
-      </div>
-      <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick={login} disabled={loading}>
+      <div class="field"><label class="field-label" for="fn">Full name</label><input id="fn" class="input" type="text" placeholder="Ada Lovelace" autocomplete="name" bind:value={fullName} oninput={() => error=''} disabled={loading} /></div>
+      <div class="field"><label class="field-label" for="em">Email</label><input id="em" class="input" type="email" placeholder="you@company.com" autocomplete="email" bind:value={email} oninput={() => error=''} disabled={loading} /></div>
+      <div class="field"><label class="field-label" for="pw">Password <span style="font-weight:400;color:var(--text-3);text-transform:none">min 8 chars</span></label><input id="pw" class="input" type="password" placeholder="••••••••" autocomplete="new-password" bind:value={password} oninput={() => error=''} disabled={loading} onkeydown={(e) => e.key==='Enter'&&register()} /></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick={register} disabled={loading}>
         {#if loading}<span class="spinner"></span>{/if}
-        {loading ? 'Signing in…' : 'Sign in'}
+        {loading ? 'Creating…' : 'Create account'}
       </button>
     </div>
-    <p class="foot">No account? <a href="/register">Create one →</a></p>
+    <p class="foot">Already have an account? <a href="/login">Sign in →</a></p>
   </div>
 </div>
-
 <style>
   .page { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:var(--bg); position:relative; overflow:hidden; }
   .grid-bg { position:fixed; inset:0; pointer-events:none; background-image:linear-gradient(rgba(245,158,11,0.03)1px,transparent 1px),linear-gradient(90deg,rgba(245,158,11,0.03)1px,transparent 1px); background-size:52px 52px; }
