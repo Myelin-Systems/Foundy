@@ -18,6 +18,7 @@ export interface SessionPayload {
   sub:   string;   // user_id (UUID)
   email: string;   // user email
   sid:   string;   // session_id — validated against DB on every request
+  oid?:  string;
   iat?:  number;
   exp?:  number;
 }

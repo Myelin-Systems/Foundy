@@ -17,6 +17,7 @@ export interface User {
   password_hash: string;
   full_name:     string;
   verified_at:   string | null;
+  active_org_id: string | null;
   created_at:    string;
   updated_at:    string;
   deleted_at:    string | null;
@@ -137,7 +138,13 @@ export class AuthService implements IService {
       throw new AuthError('SESSION_EXPIRED', 'Session expired. Please log in again.', 401);
     }
 
-    return payload;
+    // Load fresh org context — never trust the JWT for authority data
+    const user = await db.from<User>('users').where('id', payload.sub).first();
+
+    return {
+      ...payload,
+      oid: user?.active_org_id ?? undefined,
+    };
   }
 
   async changePassword(params: {
