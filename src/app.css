@@ -16,6 +16,16 @@
   --mono:      'Space Mono', monospace;
   --sans:      'DM Sans', 'Segoe UI', system-ui, sans-serif;
   --radius:    10px;
+  --text-dim:   #5a7a9a;   /* already exists */
+  --text-2:     #5a7a9a;   /* alias */
+  --text-3:     #3d5a78;   /* darker dim */
+  --border-hi:  #2a4060;   /* already exists */
+  --amber-glow: rgba(255,187,0,0.3);
+  --error:      #ff4466;   /* same as --red */
+  --error-dim:  rgba(255,68,102,0.08);
+  --r:          8px;
+  --r-lg:       12px;
+  --r-xl:       16px;
 }
 
 *, *::before, *::after {
