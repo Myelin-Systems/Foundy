@@ -1,9 +1,9 @@
 // src/routes/+page.server.ts
 import type { PageServerLoad } from './$types';
-import { redirect }            from '@sveltejs/kit';
+import { optionalSession }     from '$lib/server/utils/auth';
 
-export const load: PageServerLoad = async ({ parent }) => {
-  const { session } = await parent();
-  if (session) throw redirect(302, '/dashboard');
-  throw redirect(302, '/login');
+export const load: PageServerLoad = async ({ cookies }) => {
+  const session = await optionalSession(cookies);
+  // Just pass session to the landing page — let it decide what to show
+  return { session };
 };
