@@ -11,14 +11,15 @@
       });
       const data = await res.json();
       if (!data.ok) { error = data.message; return; }
-      goto('/dashboard/org/sites');
+      // Check if user has completed onboarding (has an org + site)
+      // The CMS page will redirect to /onboarding if not complete
+      goto('/dashboard/cms');
     } catch { error = 'Network error.'; }
     finally  { loading = false; }
   }
 </script>
 
 <svelte:head><title>Sign in — Foundy</title></svelte:head>
-
 <div class="page">
   <div class="grid-bg"></div>
   <div class="glow"></div>
@@ -44,7 +45,6 @@
     <p class="foot">No account? <a href="/register">Create one →</a></p>
   </div>
 </div>
-
 <style>
   .page { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:var(--bg); position:relative; overflow:hidden; }
   .grid-bg { position:fixed; inset:0; pointer-events:none; background-image:linear-gradient(rgba(245,158,11,0.03)1px,transparent 1px),linear-gradient(90deg,rgba(245,158,11,0.03)1px,transparent 1px); background-size:52px 52px; }
