@@ -1,0 +1,112 @@
+/* =============================================================================
+   lib/cms/cms.css
+   Global CSS custom properties and base styles for the CMS shell.
+   Import once in the root CMS page.
+   ============================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+/* ── Dark theme (default) ─────────────────────────────────────────────────── */
+.cms-shell[data-theme='dark'] {
+  --cms-bg:           #06090f;
+  --cms-surface:      #0b1018;
+  --cms-card:         #0f1621;
+  --cms-border:       #172030;
+  --cms-border-hi:    #1e304a;
+  --cms-accent:       #00d4ff;
+  --cms-accent-dim:   rgba(0, 212, 255, 0.12);
+  --cms-accent-glow:  rgba(0, 212, 255, 0.06);
+  --cms-green:        #00e896;
+  --cms-amber:        #f5b800;
+  --cms-red:          #ff4060;
+  --cms-purple:       #7c5cfc;
+  --cms-text:         #c8d8eb;
+  --cms-text-mid:     #8aaccb;
+  --cms-text-dim:     #4a6a8a;
+  --cms-shadow:       0 16px 40px rgba(0, 0, 0, 0.6);
+  --cms-shadow-sm:    0 4px 16px rgba(0, 0, 0, 0.4);
+
+  color-scheme: dark;
+}
+
+/* ── Light theme ──────────────────────────────────────────────────────────── */
+.cms-shell[data-theme='light'] {
+  --cms-bg:           #f0f4f8;
+  --cms-surface:      #ffffff;
+  --cms-card:         #ffffff;
+  --cms-border:       #dde5ef;
+  --cms-border-hi:    #c4d0e0;
+  --cms-accent:       #0284c7;
+  --cms-accent-dim:   rgba(2, 132, 199, 0.10);
+  --cms-accent-glow:  rgba(2, 132, 199, 0.05);
+  --cms-green:        #059669;
+  --cms-amber:        #d97706;
+  --cms-red:          #e11d48;
+  --cms-purple:       #7c3aed;
+  --cms-text:         #0f1621;
+  --cms-text-mid:     #475569;
+  --cms-text-dim:     #94a3b8;
+  --cms-shadow:       0 16px 40px rgba(0, 0, 0, 0.12);
+  --cms-shadow-sm:    0 4px 16px rgba(0, 0, 0, 0.08);
+
+  color-scheme: light;
+}
+
+/* ── Base reset inside the shell ─────────────────────────────────────────── */
+.cms-shell *,
+.cms-shell *::before,
+.cms-shell *::after {
+  box-sizing: border-box;
+  margin:     0;
+  padding:    0;
+}
+
+.cms-shell {
+  font-family:            'Syne', 'Segoe UI', system-ui, sans-serif;
+  background:             var(--cms-bg);
+  color:                  var(--cms-text);
+  height:                 100vh;
+  display:                flex;
+  flex-direction:         column;
+  overflow:               hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.cms-shell a {
+  color:           inherit;
+  text-decoration: none;
+}
+
+.cms-shell button {
+  font-family: inherit;
+  cursor:      pointer;
+}
+
+.cms-shell input,
+.cms-shell textarea {
+  font-family: inherit;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+.cms-shell ::-webkit-scrollbar       { width: 4px; height: 4px; }
+.cms-shell ::-webkit-scrollbar-track { background: transparent; }
+.cms-shell ::-webkit-scrollbar-thumb { background: var(--cms-border-hi); border-radius: 4px; }
+
+/* ── Monospace utility ────────────────────────────────────────────────────── */
+.cms-mono {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Animations ───────────────────────────────────────────────────────────── */
+@keyframes cms-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+@keyframes cms-slide-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+.cms-fade-in  { animation: cms-fade-in  0.2s cubic-bezier(.16, 1, .3, 1); }
+.cms-slide-in { animation: cms-slide-in 0.25s cubic-bezier(.16, 1, .3, 1); }
