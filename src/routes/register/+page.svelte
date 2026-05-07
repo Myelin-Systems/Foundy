@@ -9,11 +9,12 @@
       const res  = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fullName,email,password}) });
       const data = await res.json();
       if (!data.ok) { error=data.message; return; }
-      goto('/dashboard/org/sites');
+      goto('/onboarding');   // ← onboarding instead of dashboard
     } catch { error='Network error.'; }
     finally { loading=false; }
   }
 </script>
+
 <svelte:head><title>Create account — Foundy</title></svelte:head>
 <div class="page">
   <div class="grid-bg"></div><div class="glow"></div>
