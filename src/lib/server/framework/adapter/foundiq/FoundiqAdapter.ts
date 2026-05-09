@@ -1,5 +1,5 @@
 // =============================================================================
-// adapter/foundy/FoundyAdapter.ts
+// adapter/foundiq/FoundyAdapter.ts
 // Requires: AuthAdapter + OrganisationAdapter already booted.
 // =============================================================================
 import type { IAdapter }         from '$lib/server/framework/adapter/IAdapter';
@@ -8,16 +8,16 @@ import { foundySchema }          from './schema';
 import { MigrationRunner }       from '$lib/server/framework/services/database/MigrationRunner';
 import { bus }                   from '$lib/server/framework/services/bus/BusService';
 import type { DataService }      from '$lib/server/framework/services/database/DataService';
-import { SiteService }           from '$lib/server/services/foundy/SiteService';
-import { ContentTypeService }    from '$lib/server/services/foundy/ContentTypeService';
-import { ContentService }        from '$lib/server/services/foundy/ContentService';
-import { UsageService } from '$lib/server/services/foundy/UsageService';
-import { StorageService } from '$lib/server/services/foundy/StorageService';
+import { SiteService }           from '$lib/server/services/foundiq/SiteService';
+import { ContentTypeService }    from '$lib/server/services/foundiq/ContentTypeService';
+import { ContentService }        from '$lib/server/services/foundiq/ContentService';
+import { UsageService } from '$lib/server/services/foundiq/UsageService';
+import { StorageService } from '$lib/server/services/foundiq/StorageService';
 
-export class FoundyAdapter implements IAdapter {
-  readonly name     = 'foundy-adapter';
+export class FoundiqAdapter implements IAdapter {
+  readonly name     = 'foundiq-adapter';
   readonly version  = '1.0.0';
-  readonly tags     = ['foundy'];
+  readonly tags     = ['foundiq'];
   readonly requires = ['db', 'org'];
   readonly schema: AdapterSchema = foundySchema;
 
@@ -36,7 +36,7 @@ export class FoundyAdapter implements IAdapter {
         useSSL:    process.env.MINIO_USE_SSL === 'true',
         accessKey: process.env.MINIO_ACCESS_KEY ?? '',
         secretKey: process.env.MINIO_SECRET_KEY ?? '',
-        bucket:    process.env.MINIO_BUCKET     ?? 'foundy-media',
+        bucket:    process.env.MINIO_BUCKET     ?? 'foundiq-media',
         publicUrl: process.env.MINIO_PUBLIC_URL ?? 'http://localhost:9000',
       }),
       { runtime: 'always', requires: ['db'] }

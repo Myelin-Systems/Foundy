@@ -5,10 +5,12 @@
 // Only runs CREATE TABLE IF NOT EXISTS — it never drops columns or tables.
 // Safe to call on every boot.
 //
-// Usage in an adapter's init():
-//   const db     = bus.get<DataService>('db');
-//   const runner = new MigrationRunner(db);
-//   await runner.run([this.schema]);
+// Partial index support:
+//   { columns: ['name'], unique: true, where: 'deleted_at IS NULL' }
+//   → CREATE UNIQUE INDEX IF NOT EXISTS ... WHERE deleted_at IS NULL
+//
+//   This is the correct pattern for any unique column on a soft-delete table.
+//   Without the WHERE clause, deleted rows permanently block re-use of a value.
 // =============================================================================
 
 import type { DataService }   from './DataService';
@@ -24,10 +26,6 @@ export class MigrationRunner {
 
   constructor(private readonly db: DataService) {}
 
-  // ── run() ─────────────────────────────────────────────────────────────────
-  // Accepts an array of AdapterSchema objects (one per adapter).
-  // Processes all tables, then all extensions.
-
   async run(schemas: AdapterSchema[]): Promise<void> {
     for (const schema of schemas) {
       if (schema.tables) {
@@ -37,7 +35,6 @@ export class MigrationRunner {
       }
     }
 
-    // Extensions are applied after all tables exist (they reference other tables)
     for (const schema of schemas) {
       if (schema.extensions) {
         for (const ext of schema.extensions) {
@@ -69,7 +66,6 @@ export class MigrationRunner {
       cols.push(this.buildColumnDef(col));
     }
 
-    // Auto-timestamps
     if (table.timestamps) {
       cols.push(`created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
       cols.push(`updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
@@ -88,7 +84,13 @@ export class MigrationRunner {
 
     if (col.primaryKey) parts.push('PRIMARY KEY');
     if (col.notNull)    parts.push('NOT NULL');
+
+    // ── unique on the column definition ──────────────────────────────────────
+    // Only use this for tables WITHOUT soft-deletes (e.g. a lookup/enum table).
+    // For soft-delete tables, declare a partial index instead:
+    //   { columns: ['name'], unique: true, where: 'deleted_at IS NULL' }
     if (col.unique)     parts.push('UNIQUE');
+
     if (col.default)    parts.push(`DEFAULT ${col.default}`);
 
     if (col.references) {
@@ -112,7 +114,7 @@ export class MigrationRunner {
       case 'decimal':   return 'DECIMAL';
       case 'timestamp': return 'TIMESTAMPTZ';
       case 'jsonb':     return 'JSONB';
-      case 'enum':      return `${col.name}_enum`;  // created in ensureEnumTypes
+      case 'enum':      return `${col.name}_enum`;
       default:          return 'TEXT';
     }
   }
@@ -128,7 +130,6 @@ export class MigrationRunner {
       const typeName = `${col.name}_enum`;
       const values   = col.enumValues.map(v => `'${v}'`).join(', ');
 
-      // DO $$ ... END $$ so it doesn't fail if type already exists
       await this.db.query(`
         DO $$
         BEGIN
@@ -148,19 +149,24 @@ export class MigrationRunner {
   // ─────────────────────────────────────────────────────────────────────────
 
   private buildCreateIndex(tableName: string, idx: IndexDefinition): string {
-    const name    = `idx_${tableName}_${idx.columns.join('_')}`;
-    const unique  = idx.unique ? 'UNIQUE ' : '';
-    const cols    = idx.columns.join(', ');
-    return `CREATE ${unique}INDEX IF NOT EXISTS ${name} ON ${tableName} (${cols});`;
+    const name   = `idx_${tableName}_${idx.columns.join('_')}`;
+    const unique = idx.unique ? 'UNIQUE ' : '';
+    const cols   = idx.columns.join(', ');
+
+    // ── Partial index ─────────────────────────────────────────────────────────
+    // Always use WHERE deleted_at IS NULL on unique indexes for soft-delete
+    // tables. Without it, a deleted row permanently blocks re-use of its value.
+    const where  = idx.where ? ` WHERE ${idx.where}` : '';
+
+    return `CREATE ${unique}INDEX IF NOT EXISTS ${name} ON ${tableName} (${cols})${where};`;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Private — extensions (add columns to another adapter's table)
+  // Private — extensions
   // ─────────────────────────────────────────────────────────────────────────
 
   private async applyExtension(ext: TableExtension): Promise<void> {
     for (const col of ext.columns) {
-      // ADD COLUMN IF NOT EXISTS (PostgreSQL 9.6+)
       const sql = `
         ALTER TABLE ${ext.table}
         ADD COLUMN IF NOT EXISTS ${this.buildColumnDef(col)};

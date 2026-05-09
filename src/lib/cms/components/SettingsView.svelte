@@ -6,7 +6,7 @@
   import PricingView   from './PricingView.svelte';
   import type { SessionPayload } from '$lib/server/services/auth/TokenService';
   import { getAllPlans, isUnlimited } from '$lib/shared/plans';
-  import type { OrgUsage }       from '$lib/server/services/foundy/UsageService';
+  import type { OrgUsage }       from '$lib/server/services/foundiq/UsageService';
 
   const {
     siteId, session, siteName: initialName = '', siteDomain: initialDomain = '', usage,

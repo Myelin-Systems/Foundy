@@ -14,8 +14,9 @@ import { WebService }             from '$lib/shared/web/WebService';
 import { bus }                    from '$lib/server/framework/services/bus/BusService';
 import { DataService }            from '$lib/server/framework/services/database/DataService';
 import { AuthAdapter }            from '$lib/server/framework/adapter/auth/AuthAdapter';
+import { PaymentAdapter }         from '$lib/server/framework/adapter/payment/PaymentAdapter';
 import { OrganisationAdapter }    from '$lib/server/framework/adapter/organisation/OrganisationAdapter';
-import { FoundyAdapter }          from '$lib/server/framework/adapter/foundy/FoundyAdapter';
+import { FoundiqAdapter }          from '$lib/server/framework/adapter/foundiq/FoundiqAdapter';
 import { SocialAdapter }          from '$lib/server/framework/adapter/social/SocialAdapter';
 
 // let booted = false;
@@ -34,9 +35,18 @@ export async function bootstrap(): Promise<void> {
       tokenExpirySeconds: parseInt(requireEnv('TOKEN_EXPIRY_SECONDS'),10)
   }).init();
   
+ 
+
   await new OrganisationAdapter().init();
-  await new FoundyAdapter().init();
-  
+  await new FoundiqAdapter().init();
+  // await new PaymentAdapter({
+  //   mollieApiKey:  requireEnv('MOLLIE_API_KEY'),
+  //   webhookUrl:    requireEnv('PUBLIC_URL') + '/api/billing/webhook',
+  //   redirectUrl:   requireEnv('PUBLIC_URL') + '/dashboard/billing',
+  // }).init();
+
+
+
   // if (process.env.META_APP_ID && process.env.META_APP_SECRET) {
   //   await new SocialAdapter().init();
   // } else {

@@ -6,7 +6,7 @@
   import CollectionForm    from '../forms/CollectionForm.svelte';
   import { isUnlimited }   from '$lib/shared/plans';
   import type { Collection } from '../types';
-  import type { OrgUsage }   from '$lib/server/services/foundy/UsageService';
+  import type { OrgUsage }   from '$lib/server/services/foundiq/UsageService';
 
   const {
     collections, active, onselect, ondelete, siteId, usage,

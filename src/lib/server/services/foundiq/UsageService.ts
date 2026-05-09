@@ -1,5 +1,5 @@
 // =============================================================================
-// services/foundy/UsageService.ts
+// services/foundiq/UsageService.ts
 // =============================================================================
 // Single source of truth for plans, feature flags, and usage tracking.
 // Replaces the old PlanService entirely.
@@ -47,7 +47,7 @@ export class UsageService implements IService {
  
   readonly name    = 'usage';
   readonly version = '1.1.0';
-  readonly tags    = ['foundy', 'usage'];
+  readonly tags    = ['foundiq', 'usage'];
  
   async init():        Promise<void>    {}
   async destroy():     Promise<void>    {}

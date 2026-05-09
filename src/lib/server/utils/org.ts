@@ -2,7 +2,7 @@
 // server/utils/org.ts
 // =============================================================================
 // Route guards for multi-tenant org context.
-// Replaces membership.ts — clean, no Foundy-specific logic.
+// Replaces membership.ts — clean, no Foundiq-specific logic.
 //
 // Usage:
 //   // Requires user to be in their org with at least 'viewer' role

@@ -1,5 +1,5 @@
 // =============================================================================
-// services/foundy/StorageService.ts
+// services/foundiq/StorageService.ts
 // =============================================================================
 // MinIO wrapper. URL is never stored in the DB — built at read time from key.
 // This means changing CDN domain / moving to R2 requires zero data migration.
@@ -38,7 +38,7 @@ export class StorageService implements IService {
 
   readonly name    = 'storage';
   readonly version = '1.1.0';
-  readonly tags    = ['foundy', 'storage'];
+  readonly tags    = ['foundiq', 'storage'];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private client!: any;

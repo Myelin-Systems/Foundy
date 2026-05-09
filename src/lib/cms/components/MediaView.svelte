@@ -4,7 +4,7 @@
   import Icon              from './Icon.svelte';
   import { isUnlimited }   from '$lib/shared/plans';
   import type { MediaFile } from '../types';
-  import type { OrgUsage }  from '$lib/server/services/foundy/UsageService';
+  import type { OrgUsage }  from '$lib/server/services/foundiq/UsageService';
 
   const {
     siteId,

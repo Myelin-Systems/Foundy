@@ -32,7 +32,7 @@
   <div class="setup__card">
     <div class="setup__logo">
       <div class="setup__logo-mark"></div>
-      <span>Foundy</span>
+      <span>Foundiq</span>
     </div>
 
     <h1 class="setup__title">Create your first site</h1>

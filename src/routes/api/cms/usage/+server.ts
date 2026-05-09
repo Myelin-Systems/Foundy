@@ -12,7 +12,7 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { json }                from '@sveltejs/kit';
 import { requireSession }      from '$lib/server/utils/auth';
-import { UsageService }        from '$lib/server/services/foundy/UsageService';
+import { UsageService }        from '$lib/server/services/foundiq/UsageService';
 
 export const GET: RequestHandler = async ({ cookies }) => {
   const session = await requireSession(cookies);

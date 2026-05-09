@@ -16,7 +16,7 @@
 
   import type { NavSection, Collection, Site, Entry, MediaFile, SocialPost } from '$lib/cms/types';
   import type { SessionPayload } from '$lib/server/services/auth/TokenService';
-  import type { OrgUsage }       from '$lib/server/services/foundy/UsageService';
+  import type { OrgUsage }       from '$lib/server/services/foundiq/UsageService';
 
   interface PageData {
     session:            SessionPayload;

@@ -7,9 +7,9 @@ import { json }                from '@sveltejs/kit';
 import { requireSession }      from '$lib/server/utils/auth';
 import { bus }                 from '$lib/server/framework/services/bus/BusService';
 import type { DataService }    from '$lib/server/framework/services/database/DataService';
-import type { StorageService } from '$lib/server/services/foundy/StorageService';
-import { ALLOWED_MIME_TYPES, MAX_FILE_BYTES } from '$lib/server/services/foundy/StorageService';
-import { getPlan }             from '$lib/server/services/foundy/UsageService';
+import type { StorageService } from '$lib/server/services/foundiq/StorageService';
+import { ALLOWED_MIME_TYPES, MAX_FILE_BYTES } from '$lib/server/services/foundiq/StorageService';
+import { getPlan }             from '$lib/shared/plans';
 import { trackUsage }          from '$lib/server/utils/usage-tracker';
 
 // ── GET — list files, build URLs at read time ─────────────────────────────────

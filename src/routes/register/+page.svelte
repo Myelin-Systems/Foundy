@@ -15,11 +15,11 @@
   }
 </script>
 
-<svelte:head><title>Create account — Foundy</title></svelte:head>
+<svelte:head><title>Create account — Foundiq</title></svelte:head>
 <div class="page">
   <div class="grid-bg"></div><div class="glow"></div>
   <div class="card">
-    <div class="logo"><div class="logo-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><span>Foundy</span></div>
+    <div class="logo"><div class="logo-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><span>Foundiq</span></div>
     <h1 class="title">Create your account</h1>
     <p class="sub">CMS + Social. One place.</p>
     {#if error}<div class="err">{error}</div>{/if}

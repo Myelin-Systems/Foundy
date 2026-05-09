@@ -7,9 +7,9 @@ import { json }                from '@sveltejs/kit';
 import type { Cookies }        from '@sveltejs/kit';
 import { requireSession }      from '$lib/server/utils/auth';
 import { bus }                 from '$lib/server/framework/services/bus/BusService';
-import type { CompanyService } from '$lib/server/services/foundy/CompanyService';
+import type { CompanyService } from '$lib/server/services/foundiq/CompanyService';
 import type { SessionPayload } from '$lib/server/services/auth/TokenService';
-import type { Company }        from '$lib/server/services/foundy/CompanyService';
+import type { Company }        from '$lib/server/services/foundiq/CompanyService';
 
 export type MemberRole = 'owner' | 'editor' | 'viewer';
 

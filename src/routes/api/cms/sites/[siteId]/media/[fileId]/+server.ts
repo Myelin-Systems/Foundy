@@ -7,7 +7,7 @@ import { json }                from '@sveltejs/kit';
 import { requireSession }      from '$lib/server/utils/auth';
 import { bus }                 from '$lib/server/framework/services/bus/BusService';
 import type { DataService }    from '$lib/server/framework/services/database/DataService';
-import type { StorageService } from '$lib/server/services/foundy/StorageService';
+import type { StorageService } from '$lib/server/services/foundiq/StorageService';
 import { trackUsage }          from '$lib/server/utils/usage-tracker';
 
 export const DELETE: RequestHandler = async ({ cookies, params }) => {

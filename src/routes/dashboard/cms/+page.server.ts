@@ -2,8 +2,8 @@ import type { PageServerLoad }  from './$types';
 import { requireSession }       from '$lib/server/utils/auth';
 import { bus }                  from '$lib/server/framework/services/bus/BusService';
 import type { DataService }     from '$lib/server/framework/services/database/DataService';
-import type { UsageService }    from '$lib/server/services/foundy/UsageService';
-import type { OrgUsage }        from '$lib/server/services/foundy/UsageService';
+import type { UsageService }    from '$lib/server/services/foundiq/UsageService';
+import type { OrgUsage }        from '$lib/server/services/foundiq/UsageService';
 import type { Collection, Entry, Site, NavSection, SocialPost, MediaFile, CollectionField } from '$lib/cms/types';
 import { redirect } from '@sveltejs/kit';
 

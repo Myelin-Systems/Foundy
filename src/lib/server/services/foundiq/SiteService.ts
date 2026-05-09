@@ -1,4 +1,4 @@
-// src/lib/server/services/foundy/SiteService.ts
+// src/lib/server/services/foundiq/SiteService.ts
 import type { IService }    from '$lib/server/framework/services/IServices';
 import { bus }              from '$lib/server/framework/services/bus/BusService';
 import type { DataService } from '$lib/server/framework/services/database/DataService';
@@ -22,7 +22,7 @@ export interface SiteToken {
 export class SiteService implements IService {
   readonly name    = 'site';
   readonly version = '1.0.0';
-  readonly tags    = ['foundy', 'site'];
+  readonly tags    = ['foundiq', 'site'];
 
   private jwtSecret!: string;
 

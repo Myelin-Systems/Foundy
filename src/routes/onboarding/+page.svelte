@@ -86,7 +86,7 @@
   }
 </script>
 
-<svelte:head><title>Get started — Foundy</title></svelte:head>
+<svelte:head><title>Get started — Foundiq</title></svelte:head>
 
 <div class="ob">
   <div class="ob__bg"></div>
@@ -100,7 +100,7 @@
 
     <div class="ob__logo">
       <div class="ob__logo-mark"></div>
-      <span>Foundy</span>
+      <span>Foundiq</span>
     </div>
 
     <div class="ob__steps">

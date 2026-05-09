@@ -1,5 +1,5 @@
 // =============================================================================
-// adapter/foundy/schema.ts
+// adapter/foundiq/schema.ts
 // =============================================================================
 
 import type { AdapterSchema } from '$lib/server/framework/adapter/AdapterSchema';
@@ -20,8 +20,11 @@ export const foundySchema: AdapterSchema = {
       ],
       indexes: [
         { columns: ['org_id'],         unique: false },
-        { columns: ['org_id', 'slug'], unique: true  },
-        { columns: ['domain'],         unique: true  },
+        // Partial unique indexes — only enforce among non-deleted rows.
+        // Without `where`, a soft-deleted "Myelin Systems" permanently blocks
+        // re-creation of a site with the same slug or domain.
+        { columns: ['org_id', 'slug'], unique: true, where: 'deleted_at IS NULL' },
+        { columns: ['domain'],         unique: true, where: 'deleted_at IS NULL' },
       ],
     },
 
@@ -34,13 +37,15 @@ export const foundySchema: AdapterSchema = {
         { name: 'id',      type: 'uuid',    primaryKey: true, default: 'gen_random_uuid()' },
         { name: 'site_id', type: 'uuid',    notNull: true,
           references: { table: 'sites', column: 'id', onDelete: 'CASCADE' } },
+        // Token strings are cryptographically unique by generation —
+        // full unique constraint is correct here (tokens are never reused).
         { name: 'token',   type: 'text',    notNull: true, unique: true },
         { name: 'type',    type: 'varchar', length: 10, notNull: true, default: "'public'" },
         { name: 'revoked', type: 'boolean', notNull: true, default: 'false' },
       ],
       indexes: [
         { columns: ['site_id'], unique: false },
-        { columns: ['token'],   unique: true  },
+        { columns: ['token'],   unique: true  }, // crypto-unique — full constraint is fine
         { columns: ['type'],    unique: false },
       ],
     },
@@ -59,7 +64,8 @@ export const foundySchema: AdapterSchema = {
       ],
       indexes: [
         { columns: ['site_id'],         unique: false },
-        { columns: ['site_id', 'name'], unique: true  },
+        // Same fix — deleted collections should not block re-use of their name.
+        { columns: ['site_id', 'name'], unique: true, where: 'deleted_at IS NULL' },
       ],
     },
 
@@ -91,13 +97,16 @@ export const foundySchema: AdapterSchema = {
         { name: 'site_id',   type: 'uuid',    notNull: true,
           references: { table: 'sites', column: 'id', onDelete: 'CASCADE' } },
         { name: 'name',      type: 'varchar', length: 255, notNull: true },
+        // Storage keys are content-addressed (e.g. hash-based) — full unique
+        // constraint is correct here. If you ever allow re-upload of same filename
+        // to same path, change this to a partial index.
         { name: 'key',       type: 'text',    notNull: true, unique: true },
         { name: 'mime_type', type: 'varchar', length: 127,  notNull: true },
         { name: 'size',      type: 'integer', notNull: true },
       ],
       indexes: [
         { columns: ['site_id'],   unique: false },
-        { columns: ['key'],       unique: true  },
+        { columns: ['key'],       unique: true  }, // content-addressed — full constraint fine
         { columns: ['mime_type'], unique: false },
       ],
     },

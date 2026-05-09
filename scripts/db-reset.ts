@@ -15,7 +15,7 @@ const minio  = new Client({
   accessKey: process.env.MINIO_ACCESS_KEY ?? '',
   secretKey: process.env.MINIO_SECRET_KEY ?? '',
 });
-const bucket = process.env.MINIO_BUCKET ?? 'foundy-media';
+const bucket = process.env.MINIO_BUCKET ?? 'foundiq-media';
 
 async function clearMinio(): Promise<void> {
   console.log('🗑️  Clearing MinIO bucket...');

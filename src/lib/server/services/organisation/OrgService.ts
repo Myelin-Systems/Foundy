@@ -2,7 +2,7 @@
 // services/organisation/OrgService.ts
 // =============================================================================
 // Standalone organisation management service.
-// Usable in any project — no Foundy-specific logic.
+// Usable in any project — no Foundiq-specific logic.
 // =============================================================================
 
 import type { IService }    from '$lib/server/framework/services/IServices';

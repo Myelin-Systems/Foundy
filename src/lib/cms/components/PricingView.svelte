@@ -2,7 +2,7 @@
 <script lang="ts">
   import { getAllPlans, isUnlimited } from '$lib/shared/plans';
   import type { Plan }      from '$lib/shared/plans';
-  import type { OrgUsage }       from '$lib/server/services/foundy/UsageService';
+  import type { OrgUsage }       from '$lib/server/services/foundiq/UsageService';
   const {
     plans,
     usage,

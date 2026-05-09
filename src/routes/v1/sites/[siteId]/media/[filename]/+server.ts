@@ -5,7 +5,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 import { bus }  from '$lib/server/framework/services/bus/BusService';
 import type { DataService }    from '$lib/server/framework/services/database/DataService';
-import type { StorageService } from '$lib/server/services/foundy/StorageService';
+import type { StorageService } from '$lib/server/services/foundiq/StorageService';
 import { requireDeliveryToken, assertSite, DELIVERY_CORS } from '$lib/server/utils/delivery-auth';
 
 export const OPTIONS: RequestHandler = async () => new Response(null, { status: 204, headers: DELIVERY_CORS });

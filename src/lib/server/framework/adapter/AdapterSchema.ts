@@ -22,10 +22,11 @@ export interface ColumnDefinition {
   type:        ColumnType;
   primaryKey?: boolean;
   notNull?:    boolean;
-  unique?:     boolean;
-  default?:    string;        // SQL default e.g. 'gen_random_uuid()' / 'NOW()'
-  length?:     number;        // for varchar
-  enumValues?: string[];      // for enum type
+  unique?:     boolean;    // WARNING: full unique — use a partial index instead
+                           // when the table has soft-deletes. See IndexDefinition.where
+  default?:    string;     // SQL default e.g. 'gen_random_uuid()' / 'NOW()'
+  length?:     number;     // for varchar
+  enumValues?: string[];   // for enum type
   references?: {
     table:    string;
     column:   string;
@@ -36,6 +37,9 @@ export interface ColumnDefinition {
 export interface IndexDefinition {
   columns: string[];
   unique?: boolean;
+  where?:  string;  // partial index predicate e.g. 'deleted_at IS NULL'
+                    // REQUIRED on any unique index for tables with soft-deletes —
+                    // without it, deleted rows block re-use of the same value.
 }
 
 export interface TableDefinition {

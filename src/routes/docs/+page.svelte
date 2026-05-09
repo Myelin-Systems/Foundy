@@ -52,7 +52,7 @@
 
 const SITE_ID  = 'YOUR_SITE_ID';
 const PUB_KEY  = 'pnd_pub_YOUR_KEY';
-const BASE_URL = 'https://api.foundy.io/v1';
+const BASE_URL = 'https://api.foundiq.io/v1';
 
 function headers() {
   return { 'Authorization': \`Bearer \${PUB_KEY}\` };
@@ -70,8 +70,8 @@ console.log(\`Loaded \${products.length} of \${meta.total} products\`);`;
 </script>
 
 <svelte:head>
-  <title>API Reference — Foundy</title>
-  <meta name="description" content="Foundy delivery API reference. Connect any frontend to your content in minutes." />
+  <title>API Reference — Foundiq</title>
+  <meta name="description" content="Foundiq delivery API reference. Connect any frontend to your content in minutes." />
 </svelte:head>
 
 <div class="docs">
@@ -81,7 +81,7 @@ console.log(\`Loaded \${products.length} of \${meta.total} products\`);`;
     <div class="docs__nav-logo">
       <a href="/" class="docs__nav-brand">
         <div class="docs__nav-mark"></div>
-        <span>Foundy</span>
+        <span>Foundiq</span>
       </a>
       <span class="docs__nav-label">API Reference</span>
     </div>
@@ -163,7 +163,7 @@ console.log(\`Loaded \${products.length} of \${meta.total} products\`);`;
         </div>
         <pre class="docs__pre"><span class="docs__kw">const</span> SITE_ID  = <span class="docs__str">'YOUR_SITE_ID'</span>;
 <span class="docs__kw">const</span> PUB_KEY  = <span class="docs__str">'pnd_pub_YOUR_KEY'</span>;
-<span class="docs__kw">const</span> BASE_URL = <span class="docs__str">'https://api.foundy.io/v1'</span>;
+<span class="docs__kw">const</span> BASE_URL = <span class="docs__str">'https://api.foundiq.io/v1'</span>;
 
 <span class="docs__kw">function</span> <span class="docs__fn">headers</span>() {"{"}
   <span class="docs__kw">return</span> {"{"} <span class="docs__str">'Authorization'</span>: <span class="docs__str">`Bearer <span class="docs__tmpl">${"${"}PUB_KEY{"}"}</span>`</span> {"}"};
@@ -223,7 +223,7 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
         <div class="docs__tag">v1</div>
         <h2 class="docs__h2">Introduction</h2>
         <p class="docs__lead">
-          The Foundy delivery API lets you fetch your content from any frontend —
+          The Foundiq delivery API lets you fetch your content from any frontend —
           Next.js, SvelteKit, vanilla JS, mobile apps, anywhere that can make an HTTP request.
           It's read-optimised, CORS-enabled, and cacheable by default.
         </p>
@@ -261,7 +261,7 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
       <h2 class="docs__h2">Authentication</h2>
       <p class="docs__p">
         Every request requires a Bearer token in the <code class="docs__code">Authorization</code> header.
-        Foundy issues two types of token per site — choose the right one for your context.
+        Foundiq issues two types of token per site — choose the right one for your context.
       </p>
 
       <div class="docs__table-wrap">
@@ -311,11 +311,11 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
       <div class="docs__example">
         <div class="docs__example-header">
           <span class="docs__example-label">Base URL</span>
-          <button class="docs__copy" onclick={() => copy('https://api.foundy.io/v1', 'base')}>
+          <button class="docs__copy" onclick={() => copy('https://api.foundiq.io/v1', 'base')}>
             {copied === 'base' ? '✓ Copied' : 'Copy'}
           </button>
         </div>
-        <pre class="docs__pre">https://api.foundy.io/v1</pre>
+        <pre class="docs__pre">https://api.foundiq.io/v1</pre>
       </div>
     </section>
 
@@ -338,11 +338,11 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
       <div class="docs__example">
         <div class="docs__example-header">
           <span class="docs__example-label">Request</span>
-          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundy.io/v1/sites/SITE_ID/collections', {
+          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundiq.io/v1/sites/SITE_ID/collections', {
   headers: { 'Authorization': 'Bearer pnd_pub_YOUR_KEY' }
 })`, 'col-req')}>{copied === 'col-req' ? '✓ Copied' : 'Copy'}</button>
         </div>
-        <pre class="docs__pre"><span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundy.io/v1/sites/SITE_ID/collections'</span>, {"{"}
+        <pre class="docs__pre"><span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundiq.io/v1/sites/SITE_ID/collections'</span>, {"{"}
   headers: {"{"} <span class="docs__str">'Authorization'</span>: <span class="docs__str">'Bearer pnd_pub_YOUR_KEY'</span> {"}"}
 {"}"})</pre>
       </div>
@@ -398,12 +398,12 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
       <div class="docs__example">
         <div class="docs__example-header">
           <span class="docs__example-label">Request</span>
-          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundy.io/v1/sites/SITE_ID/collections/products/entries?limit=10&category=shoes', {
+          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundiq.io/v1/sites/SITE_ID/collections/products/entries?limit=10&category=shoes', {
   headers: { 'Authorization': 'Bearer pnd_pub_YOUR_KEY' }
 })`, 'list-req')}>{copied === 'list-req' ? '✓ Copied' : 'Copy'}</button>
         </div>
         <pre class="docs__pre"><span class="docs__comment">// Fetch 10 products in the "shoes" category</span>
-<span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundy.io/v1/sites/SITE_ID/collections/products/entries?limit=10&category=shoes'</span>, {"{"}
+<span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundiq.io/v1/sites/SITE_ID/collections/products/entries?limit=10&category=shoes'</span>, {"{"}
   headers: {"{"} <span class="docs__str">'Authorization'</span>: <span class="docs__str">'Bearer pnd_pub_YOUR_KEY'</span> {"}"}
 {"}"})</pre>
       </div>
@@ -440,11 +440,11 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
       <div class="docs__example">
         <div class="docs__example-header">
           <span class="docs__example-label">Request</span>
-          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundy.io/v1/sites/SITE_ID/collections/products/entries/ENTRY_ID', {
+          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundiq.io/v1/sites/SITE_ID/collections/products/entries/ENTRY_ID', {
   headers: { 'Authorization': 'Bearer pnd_pub_YOUR_KEY' }
 })`, 'single-req')}>{copied === 'single-req' ? '✓ Copied' : 'Copy'}</button>
         </div>
-        <pre class="docs__pre"><span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundy.io/v1/sites/SITE_ID/collections/products/entries/ENTRY_ID'</span>, {"{"}
+        <pre class="docs__pre"><span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundiq.io/v1/sites/SITE_ID/collections/products/entries/ENTRY_ID'</span>, {"{"}
   headers: {"{"} <span class="docs__str">'Authorization'</span>: <span class="docs__str">'Bearer pnd_pub_YOUR_KEY'</span> {"}"}
 {"}"})</pre>
       </div>
@@ -483,7 +483,7 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
       <div class="docs__example">
         <div class="docs__example-header">
           <span class="docs__example-label">Contact form — server-side handler</span>
-          <button class="docs__copy" onclick={() => copy(`await fetch('https://api.foundy.io/v1/sites/SITE_ID/collections/contact/entries', {
+          <button class="docs__copy" onclick={() => copy(`await fetch('https://api.foundiq.io/v1/sites/SITE_ID/collections/contact/entries', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer pnd_sec_YOUR_SECRET_KEY',
@@ -498,7 +498,7 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
   })
 })`, 'create-req')}>{copied === 'create-req' ? '✓ Copied' : 'Copy'}</button>
         </div>
-        <pre class="docs__pre"><span class="docs__kw">await</span> <span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundy.io/v1/sites/SITE_ID/collections/contact/entries'</span>, {"{"}
+        <pre class="docs__pre"><span class="docs__kw">await</span> <span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundiq.io/v1/sites/SITE_ID/collections/contact/entries'</span>, {"{"}
   method: <span class="docs__str">'POST'</span>,
   headers: {"{"}
     <span class="docs__str">'Authorization'</span>: <span class="docs__str">'Bearer pnd_sec_YOUR_SECRET_KEY'</span>,
@@ -557,7 +557,7 @@ console.log(<span class="docs__str">`Loaded <span class="docs__tmpl">${"${"}prod
           <button class="docs__copy" onclick={() => copy(`const charge = event.data.object;
 
 const res = await fetch(
-  \`https://api.foundy.io/v1/sites/\${SITE_ID}/collections/products/entries/\${productId}/decrement\`,
+  \`https://api.foundiq.io/v1/sites/\${SITE_ID}/collections/products/entries/\${productId}/decrement\`,
   {
     method: 'POST',
     headers: { 'Authorization': \`Bearer \${PUB_KEY}\`, 'Content-Type': 'application/json' },
@@ -575,7 +575,7 @@ if (!ok && code === 'OUT_OF_STOCK') { /* refund */ }`, 'dec-req')}>{copied === '
         <pre class="docs__pre"><span class="docs__kw">const</span> charge = event.data.object;
 
 <span class="docs__kw">const</span> res = <span class="docs__kw">await</span> <span class="docs__kw">fetch</span>(
-  <span class="docs__str">`https://api.foundy.io/v1/sites/<span class="docs__tmpl">${"${"}SITE_ID{"}"}</span>/collections/products/entries/<span class="docs__tmpl">${"${"}productId{"}"}</span>/decrement`</span>,
+  <span class="docs__str">`https://api.foundiq.io/v1/sites/<span class="docs__tmpl">${"${"}SITE_ID{"}"}</span>/collections/products/entries/<span class="docs__tmpl">${"${"}productId{"}"}</span>/decrement`</span>,
   {"{"}
     method: <span class="docs__str">'POST'</span>,
     headers: {"{"} <span class="docs__str">'Authorization'</span>: <span class="docs__str">`Bearer <span class="docs__tmpl">${"${"}PUB_KEY{"}"}</span>`</span>, <span class="docs__str">'Content-Type'</span>: <span class="docs__str">'application/json'</span> {"}"},
@@ -637,11 +637,11 @@ if (!ok && code === 'OUT_OF_STOCK') { /* refund */ }`, 'dec-req')}>{copied === '
       <div class="docs__example">
         <div class="docs__example-header">
           <span class="docs__example-label">Fetch all images</span>
-          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundy.io/v1/sites/SITE_ID/media?mime_type=image/', {
+          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundiq.io/v1/sites/SITE_ID/media?mime_type=image/', {
   headers: { 'Authorization': 'Bearer pnd_pub_YOUR_KEY' }
 })`, 'media-req')}>{copied === 'media-req' ? '✓ Copied' : 'Copy'}</button>
         </div>
-        <pre class="docs__pre"><span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundy.io/v1/sites/SITE_ID/media?mime_type=image/'</span>, {"{"}
+        <pre class="docs__pre"><span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundiq.io/v1/sites/SITE_ID/media?mime_type=image/'</span>, {"{"}
   headers: {"{"} <span class="docs__str">'Authorization'</span>: <span class="docs__str">'Bearer pnd_pub_YOUR_KEY'</span> {"}"}
 {"}"})</pre>
       </div>
@@ -663,11 +663,11 @@ if (!ok && code === 'OUT_OF_STOCK') { /* refund */ }`, 'dec-req')}>{copied === '
       <div class="docs__example">
         <div class="docs__example-header">
           <span class="docs__example-label">Request</span>
-          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundy.io/v1/sites/SITE_ID/media/hero-banner.jpg', {
+          <button class="docs__copy" onclick={() => copy(`fetch('https://api.foundiq.io/v1/sites/SITE_ID/media/hero-banner.jpg', {
   headers: { 'Authorization': 'Bearer pnd_pub_YOUR_KEY' }
 })`, 'msingle-req')}>{copied === 'msingle-req' ? '✓ Copied' : 'Copy'}</button>
         </div>
-        <pre class="docs__pre"><span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundy.io/v1/sites/SITE_ID/media/hero-banner.jpg'</span>, {"{"}
+        <pre class="docs__pre"><span class="docs__kw">fetch</span>(<span class="docs__str">'https://api.foundiq.io/v1/sites/SITE_ID/media/hero-banner.jpg'</span>, {"{"}
   headers: {"{"} <span class="docs__str">'Authorization'</span>: <span class="docs__str">'Bearer pnd_pub_YOUR_KEY'</span> {"}"}
 {"}"})</pre>
       </div>
@@ -716,7 +716,7 @@ GET /v1/sites/SITE_ID/collections/products/entries?search=running+shoe</pre>
 
   while (true) {
     const res = await fetch(
-      \`https://api.foundy.io/v1/sites/\${siteId}/collections/\${collection}/entries?limit=\${limit}&offset=\${offset}\`,
+      \`https://api.foundiq.io/v1/sites/\${siteId}/collections/\${collection}/entries?limit=\${limit}&offset=\${offset}\`,
       { headers: { 'Authorization': \`Bearer \${token}\` } }
     );
     const { data, meta } = await res.json();
@@ -734,7 +734,7 @@ GET /v1/sites/SITE_ID/collections/products/entries?search=running+shoe</pre>
 
   <span class="docs__kw">while</span> (<span class="docs__bool">true</span>) {"{"}
     <span class="docs__kw">const</span> res = <span class="docs__kw">await</span> <span class="docs__kw">fetch</span>(
-      <span class="docs__str">`https://api.foundy.io/v1/sites/<span class="docs__tmpl">${"${"}siteId{"}"}</span>/collections/<span class="docs__tmpl">${"${"}collection{"}"}</span>/entries?limit=<span class="docs__tmpl">${"${"}limit{"}"}</span>&offset=<span class="docs__tmpl">${"${"}offset{"}"}</span>`</span>,
+      <span class="docs__str">`https://api.foundiq.io/v1/sites/<span class="docs__tmpl">${"${"}siteId{"}"}</span>/collections/<span class="docs__tmpl">${"${"}collection{"}"}</span>/entries?limit=<span class="docs__tmpl">${"${"}limit{"}"}</span>&offset=<span class="docs__tmpl">${"${"}offset{"}"}</span>`</span>,
       {"{"} headers: {"{"} <span class="docs__str">'Authorization'</span>: <span class="docs__str">`Bearer <span class="docs__tmpl">${"${"}token{"}"}</span>`</span> {"}"} {"}"}
     );
     <span class="docs__kw">const</span> {"{"} data, meta {"}"} = <span class="docs__kw">await</span> res.json();
@@ -776,7 +776,7 @@ GET /v1/sites/SITE_ID/collections/products/entries?search=running+shoe</pre>
     </section>
 
     <div class="docs__footer">
-      <p>Something missing or wrong? <a href="mailto:hello@foundy.io">hello@foundy.io</a></p>
+      <p>Something missing or wrong? <a href="mailto:hello@foundiq.io">hello@foundiq.io</a></p>
     </div>
 
   </main>

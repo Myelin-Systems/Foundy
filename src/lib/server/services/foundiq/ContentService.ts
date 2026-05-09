@@ -1,4 +1,4 @@
-// src/lib/server/services/foundy/ContentService.ts
+// src/lib/server/services/foundiq/ContentService.ts
 import type { IService }    from '$lib/server/framework/services/IServices';
 import { bus }              from '$lib/server/framework/services/bus/BusService';
 import type { DataService } from '$lib/server/framework/services/database/DataService';
@@ -18,7 +18,7 @@ export interface ContentEntry {
 export class ContentService implements IService {
   readonly name    = 'content';
   readonly version = '1.0.0';
-  readonly tags    = ['foundy', 'content'];
+  readonly tags    = ['foundiq', 'content'];
 
   async init():        Promise<void>    {}
   async destroy():     Promise<void>    {}
