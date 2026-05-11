@@ -37,12 +37,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
       );
     }
 
-    const mollie = bus.get<MollieService>('mollie');
+   const mollie = bus.get<MollieService>('mollie');
     const result = await mollie.createCheckout({
-      orgId:     session.oid,
-      orgName:   body.orgName ?? 'Foundiq Organisation',  // pass from client if available
-      planSlug:  body.planSlug,
-      userEmail: session.email,
+      orgId:        session.oid,
+      orgName:      body.orgName ?? 'Foundiq Organisation',
+      planSlug:     body.planSlug,
+      userEmail:    session.email,
+      billingCycle: body.billingCycle ?? 'month',
     });
 
     return json({ ok: true, ...result });

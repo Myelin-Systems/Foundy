@@ -72,8 +72,9 @@ export class PaymentAdapter implements IAdapter {
 
     for (const plan of plans) {
       const priceMonthCents = plan.price_month !== null ? plan.price_month * 100 : null;
-      const priceYearCents  = plan.price_year  !== null ? plan.price_year  * 100 : null;
-
+      const priceYearCents = plan.price_month !== null 
+        ? Math.round(plan.price_month * 12 * 0.87 * 100) 
+        : null;
       await db.query(
         `INSERT INTO plans (
            slug, name, tagline,

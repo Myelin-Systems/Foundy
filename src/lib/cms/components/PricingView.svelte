@@ -13,6 +13,30 @@
 
   let billing = $state<'month' | 'year'>('month');
 
+  let upgrading = $state<string | null>(null); // plan id dat bezig is
+
+  async function handleUpgrade(plan: Plan) {
+    if (upgrading) return;
+    upgrading = plan.id;
+    try {
+      const res  = await fetch('/api/billing/checkout', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          planSlug:    plan.id,
+          billingCycle: billing,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) { alert(json.message); return; }
+      window.location.href = json.checkoutUrl;
+    } catch {
+      alert('Something went wrong. Please try again.');
+    } finally {
+      upgrading = null;
+    }
+  }
+
   function fmtBytes(n: number): string {
     if (isUnlimited(n))            return '∞';
     if (n === 0)                   return '—';
@@ -169,11 +193,17 @@
               Contact sales →
             </a>
           {:else}
-            <button
+           <button
               class="pricing__btn"
               class:pricing__btn--highlighted={plan.highlighted}
+              disabled={!!upgrading}
+              onclick={() => handleUpgrade(plan)}
             >
-              {price === 0 ? 'Get started free' : `Upgrade to ${plan.name}`} →
+              {#if upgrading === plan.id}
+                Processing…
+              {:else}
+                {price === 0 ? 'Get started free' : `Upgrade to ${plan.name}`} →
+              {/if}
             </button>
           {/if}
         </div>

@@ -21,11 +21,12 @@ import type { EmailService }        from '../email/EmailService';
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
-export interface Plan {
+export interface DbPlan {
   id:               string;
   slug:             string;
   name:             string;
-  price_cents:      number;
+  price_year_cents: number | null;
+  price_month_cents: number | null;
   currency:         string;
   interval:         'month' | 'year';
   interval_count:   number;
@@ -138,9 +139,9 @@ export class MollieService implements IService {
   /**
    * Fetch all active plans from the DB.
    */
-  async getPlans(): Promise<Plan[]> {
+  async getPlans(): Promise<DbPlan[]> {
     const db = bus.get<DataService>('db');
-    const { rows } = await db.from<Plan>('plans')
+    const { rows } = await db.from<DbPlan>('plans')
       .where('active', true)
       .orderBy('price_cents', 'asc')
       .run();
@@ -150,9 +151,9 @@ export class MollieService implements IService {
   /**
    * Fetch one plan by slug.
    */
-  async getPlanBySlug(slug: string): Promise<Plan | null> {
+  async getPlanBySlug(slug: string): Promise<DbPlan | null> {
     const db = bus.get<DataService>('db');
-    return db.from<Plan>('plans').where('slug', slug).first();
+    return db.from<DbPlan>('plans').where('slug', slug).first();
   }
 
   // ── Subscription reads ───────────────────────────────────────────────────────
@@ -160,14 +161,14 @@ export class MollieService implements IService {
   /**
    * Get the subscription for an org. Creates a free-tier subscription if none exists.
    */
-  async getOrCreateSubscription(orgId: string): Promise<Subscription & { plan: Plan }> {
+  async getOrCreateSubscription(orgId: string): Promise<Subscription & { plan: DbPlan }> {
     const db  = bus.get<DataService>('db');
 
     let sub = await db.from<Subscription>('subscriptions').where('org_id', orgId).first();
 
     if (!sub) {
       // New org — assign free plan
-      const freePlan = await this.getPlanBySlug('free');
+      const freePlan = await this.getPlanBySlug('cms_starter');
       if (!freePlan) throw new PaymentError('PLAN_NOT_FOUND', 'Free plan not configured.', 500);
 
       const { rows } = await db.from<Subscription>('subscriptions')
@@ -177,8 +178,8 @@ export class MollieService implements IService {
       sub = rows[0];
     }
 
-    const plan = await db.from<Plan>('plans').where('id', sub.plan_id).first();
-    if (!plan) throw new PaymentError('PLAN_NOT_FOUND', 'Plan not found for subscription.', 500);
+    const plan = await db.from<DbPlan>('plans').where('id', sub.plan_id).first();
+    if (!plan) throw new PaymentError('PLAN_NOT_FOUND', 'DbPlan not found for subscription.', 500);
 
     return { ...sub, plan };
   }
@@ -203,31 +204,37 @@ export class MollieService implements IService {
     orgName:     string;
     planSlug:    string;
     userEmail:   string;
+    billingCycle?: 'month' | 'year';
   }): Promise<CheckoutResult> {
 
     const db   = bus.get<DataService>('db');
     const plan = await this.getPlanBySlug(params.planSlug);
-
-    if (!plan)          throw new PaymentError('PLAN_NOT_FOUND', `Plan "${params.planSlug}" not found.`);
-    if (!plan.active)   throw new PaymentError('PLAN_INACTIVE',  `Plan "${params.planSlug}" is not available.`);
-    if (plan.price_cents === 0) throw new PaymentError('PLAN_FREE', 'Cannot checkout free plan.');
+    if (!plan)          throw new PaymentError('PLAN_NOT_FOUND', `DbPlan "${params.planSlug}" not found.`);
+    if (!plan.active)   throw new PaymentError('PLAN_INACTIVE',  `DbPlan "${params.planSlug}" is not available.`);
+    if (plan.price_month_cents === 0) throw new PaymentError('PLAN_FREE', 'Cannot checkout free plan.');
+    
+    plan.currency = 'EUR';//FIXME: support other currencies
 
     // Get or create Mollie customer for this org
     const sub          = await this.getOrCreateSubscription(params.orgId);
     const customerId   = await this.ensureMollieCustomer(sub, params.orgName, params.userEmail);
 
     // Amount in euros (Mollie uses string decimal e.g. "9.00")
-    const amount = this.centsToCurrency(plan.price_cents, plan.currency);
+    const priceCents = params.billingCycle === 'year'
+      ? plan.price_year_cents
+      : plan.price_month_cents;
 
+    const amount = this.centsToCurrency(priceCents!, 'EUR');
+    
     // Create the first payment — sequenceType 'first' creates a mandate
     const payment = await this.client.payments.create({
       amount: {
-        currency: plan.currency,
+        currency: plan.currency, 
         value:    amount,
       },
       customerId,
       sequenceType:  'first',
-      description:   `Foundiq ${plan.name} — ${plan.interval === 'month' ? 'Monthly' : 'Annual'} subscription`,
+      description: `Foundiq ${plan.name} — ${params.billingCycle === 'year' ? 'Annual' : 'Monthly'} subscription`,
       redirectUrl:   `${this.config.redirectUrl}?payment=pending`,
       webhookUrl:    this.config.webhookUrl,
       metadata: {
@@ -244,7 +251,7 @@ export class MollieService implements IService {
         org_id:               params.orgId,
         subscription_id:      sub.id,
         mollie_payment_id:    payment.id,
-        amount_cents:         plan.price_cents,
+        amount_cents:         priceCents ?? 0,
         currency:             plan.currency,
         status:               'open',
         description:          `Foundiq ${plan.name} subscription`,
@@ -351,7 +358,7 @@ export class MollieService implements IService {
     }
   }
 
-  // ── Plan change ───────────────────────────────────────────────────────────────
+  // ── DbPlan change ───────────────────────────────────────────────────────────────
 
   /**
    * Upgrade or downgrade a subscription.
@@ -363,7 +370,7 @@ export class MollieService implements IService {
     const sub     = await this.getOrCreateSubscription(orgId);
     const newPlan = await this.getPlanBySlug(newPlanSlug);
 
-    if (!newPlan) throw new PaymentError('PLAN_NOT_FOUND', `Plan "${newPlanSlug}" not found.`);
+    if (!newPlan) throw new PaymentError('PLAN_NOT_FOUND', `DbPlan "${newPlanSlug}" not found.`);
 
     // Downgrade to free — just cancel
     if (newPlan.price_cents === 0) {
@@ -431,7 +438,7 @@ export class MollieService implements IService {
       this.sendInvoiceEmail({
         payment,
         orgId:       meta.org_id,
-        plan:        (await db.from<Plan>('plans').where('id', meta.plan_id).first())!,
+        plan:        (await db.from<DbPlan>('plans').where('id', meta.plan_id).first())!,
         periodStart: now,
         periodEnd:   end,
         db,
@@ -440,7 +447,7 @@ export class MollieService implements IService {
 
     // Recurring payment: renew the period
     if (meta.type === 'recurring') {
-      const plan  = await db.from<Plan>('plans').where('id', meta.plan_id).first();
+      const plan  = await db.from<DbPlan>('plans').where('id', meta.plan_id).first();
       if (!plan) return;
 
       const now = new Date();
@@ -471,7 +478,7 @@ export class MollieService implements IService {
   private async sendInvoiceEmail(params: {
     payment:     any;
     orgId:       string;
-    plan:        Plan;
+    plan:        DbPlan;
     periodStart: Date;
     periodEnd:   Date;
     db:          DataService;
@@ -568,8 +575,8 @@ export class MollieService implements IService {
     db:         DataService,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    const plan   = await db.from<Plan>('plans').where('id', planId).first();
-    if (!plan)   throw new PaymentError('PLAN_NOT_FOUND', 'Plan not found.', 500);
+    const plan   = await db.from<DbPlan>('plans').where('id', planId).first();
+    if (!plan)   throw new PaymentError('PLAN_NOT_FOUND', 'DbPlan not found.', 500);
 
     const nextChargeDate = this.addInterval(new Date(), plan.interval, plan.interval_count);
 
