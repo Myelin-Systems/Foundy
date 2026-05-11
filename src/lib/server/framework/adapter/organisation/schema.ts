@@ -24,7 +24,7 @@ export const organisationSchema: AdapterSchema = {
         { name: 'name',        type: 'varchar', length: 255, notNull: true },
         { name: 'slug',        type: 'varchar', length: 255, notNull: true, unique: true },
         // URL-safe identifier — auto-derived from name on create
-        { name: 'plan',        type: 'varchar', length: 60,  notNull: true, default: "'starter'" },
+        // { name: 'plan',        type: 'varchar', length: 60,  notNull: true, default: "'starter'" },
         // plan is a free varchar — validated by PlanService, not the DB
         { name: 'description', type: 'text' },
         { name: 'logo_url',    type: 'text' },
