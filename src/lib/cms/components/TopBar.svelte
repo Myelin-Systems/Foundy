@@ -8,13 +8,15 @@
   import type { Site }           from '../types';
 
   const {
-    sites, activeSiteId, userInitial,
-  }: {
-    sites:        Site[];
-    activeSiteId: string | null;
-    userInitial:  string;
-  } = $props();
-
+  sites, activeSiteId, userInitial, planSlug, planName,
+}: {
+  sites:        Site[];
+  activeSiteId: string | null;
+  userInitial:  string;
+  planSlug:     string;
+  planName:     string;
+} = $props();
+  console.log('TopBar props:', { sites, activeSiteId, userInitial, planSlug, planName });
   let siteOpen   = $state(false);
   let showAddSite = $state(false);
   let creating   = $state(false);
@@ -95,7 +97,7 @@
     <a href="/docs" class="topbar__docs-link">
       <Icon name="globe" size={13} /> Docs
     </a>
-    <span class="topbar__plan">PRO</span>
+    <span class="topbar__plan">{planName}</span>
     <button class="topbar__theme-btn" onclick={toggleTheme} aria-label="Toggle theme"
       title="Switch to {cmsTheme.value === 'dark' ? 'light' : 'dark'} theme">
       <Icon name={cmsTheme.value === 'dark' ? 'sun' : 'moon'} size={15} />
