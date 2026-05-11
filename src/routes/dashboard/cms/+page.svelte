@@ -33,6 +33,8 @@
     secretToken:        string | null;
     usage:              OrgUsage;
     section:            NavSection;
+    planSlug:           string;
+    planName:           string;
   }
 
   const { data }: { data: PageData } = $props();
@@ -84,6 +86,8 @@
     sites={data.sites}
     activeSiteId={siteId}
     userInitial={data.session.email[0].toUpperCase()}
+    planSlug={data.planSlug}
+    planName={data.planName}
   />
 
   <div class="cms-body">

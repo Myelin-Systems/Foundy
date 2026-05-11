@@ -6,6 +6,8 @@ import type { UsageService }    from '$lib/server/services/foundiq/UsageService'
 import type { OrgUsage }        from '$lib/server/services/foundiq/UsageService';
 import type { Collection, Entry, Site, NavSection, SocialPost, MediaFile, CollectionField } from '$lib/cms/types';
 import { redirect } from '@sveltejs/kit';
+import type { MollieService } from '$lib/server/services/payment/MollieService';
+
 
 export const load: PageServerLoad = async ({ cookies, url }) => {
   const session = await requireSession(cookies);
@@ -29,7 +31,11 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
    };
   }
 
-  // ── Usage ─────────────────────────────────────────────────────────────────
+
+  // ── Subscription ─────────────────────────────────────────────────────────────────
+  // Na de usage fetch:
+  const mollie = bus.get<MollieService>('mollie');
+  const subscription = await mollie.getOrCreateSubscription(session.oid!);
   
   // ── Sites ─────────────────────────────────────────────────────────────────
   const { rows: siteRows } = await db.query<{
@@ -97,6 +103,9 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
   let secretToken: string | null = null;
 
 
+
+
+
   if (section === 'content' && activeCollectionId) {
     const { rows } = await db.query<Entry>(
       `SELECT id, collection_id, status, data, updated_at
@@ -131,7 +140,8 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
     );
     mediaFiles = rows;
   }
-    
+  
+  
 
   return {
     session,
@@ -139,6 +149,9 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
     activeSiteId,
     activeSiteName:   activeSiteRow?.name   ?? '',
     activeSiteDomain: activeSiteRow?.domain ?? '',
+    planSlug:    subscription.plan.slug,    // 'cms_starter'
+    planName:    subscription.plan.name,    // 'CMS Starter'
+    userInitial: session.email[0].toUpperCase(),
     collections,
     activeCollectionId,
     entries,
