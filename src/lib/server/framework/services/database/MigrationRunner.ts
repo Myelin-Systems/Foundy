@@ -5,12 +5,12 @@
 // Only runs CREATE TABLE IF NOT EXISTS — it never drops columns or tables.
 // Safe to call on every boot.
 //
+// Enum naming: {table}_{column}_enum — scoped to table to avoid conflicts
+// when multiple tables have a column with the same name (e.g. 'status').
+//
 // Partial index support:
 //   { columns: ['name'], unique: true, where: 'deleted_at IS NULL' }
 //   → CREATE UNIQUE INDEX IF NOT EXISTS ... WHERE deleted_at IS NULL
-//
-//   This is the correct pattern for any unique column on a soft-delete table.
-//   Without the WHERE clause, deleted rows permanently block re-use of a value.
 // =============================================================================
 
 import type { DataService }   from './DataService';
@@ -63,7 +63,7 @@ export class MigrationRunner {
     const cols: string[] = [];
 
     for (const col of table.columns) {
-      cols.push(this.buildColumnDef(col));
+      cols.push(this.buildColumnDef(col, table.name));
     }
 
     if (table.timestamps) {
@@ -79,8 +79,8 @@ export class MigrationRunner {
     `.trim();
   }
 
-  private buildColumnDef(col: ColumnDefinition): string {
-    const parts: string[] = [col.name, this.toSqlType(col)];
+  private buildColumnDef(col: ColumnDefinition, tableName: string): string {
+    const parts: string[] = [col.name, this.toSqlType(col, tableName)];
 
     if (col.primaryKey) parts.push('PRIMARY KEY');
     if (col.notNull)    parts.push('NOT NULL');
@@ -103,7 +103,7 @@ export class MigrationRunner {
     return parts.join(' ');
   }
 
-  private toSqlType(col: ColumnDefinition): string {
+  private toSqlType(col: ColumnDefinition, tableName: string): string {
     switch (col.type) {
       case 'uuid':      return 'UUID';
       case 'varchar':   return col.length ? `VARCHAR(${col.length})` : 'VARCHAR(255)';
@@ -114,7 +114,7 @@ export class MigrationRunner {
       case 'decimal':   return 'DECIMAL';
       case 'timestamp': return 'TIMESTAMPTZ';
       case 'jsonb':     return 'JSONB';
-      case 'enum':      return `${col.name}_enum`;
+      case 'enum':      return `${tableName}_${col.name}_enum`;
       default:          return 'TEXT';
     }
   }
@@ -127,7 +127,7 @@ export class MigrationRunner {
     for (const col of table.columns) {
       if (col.type !== 'enum' || !col.enumValues?.length) continue;
 
-      const typeName = `${col.name}_enum`;
+      const typeName = `${table.name}_${col.name}_enum`;
       const values   = col.enumValues.map(v => `'${v}'`).join(', ');
 
       await this.db.query(`
@@ -152,10 +152,6 @@ export class MigrationRunner {
     const name   = `idx_${tableName}_${idx.columns.join('_')}`;
     const unique = idx.unique ? 'UNIQUE ' : '';
     const cols   = idx.columns.join(', ');
-
-    // ── Partial index ─────────────────────────────────────────────────────────
-    // Always use WHERE deleted_at IS NULL on unique indexes for soft-delete
-    // tables. Without it, a deleted row permanently blocks re-use of its value.
     const where  = idx.where ? ` WHERE ${idx.where}` : '';
 
     return `CREATE ${unique}INDEX IF NOT EXISTS ${name} ON ${tableName} (${cols})${where};`;
@@ -169,7 +165,7 @@ export class MigrationRunner {
     for (const col of ext.columns) {
       const sql = `
         ALTER TABLE ${ext.table}
-        ADD COLUMN IF NOT EXISTS ${this.buildColumnDef(col)};
+        ADD COLUMN IF NOT EXISTS ${this.buildColumnDef(col, ext.table)};
       `.trim();
 
       await this.db.query(sql);
