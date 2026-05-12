@@ -51,12 +51,12 @@
 
   function confirmPlan() { 
     const hasCms = can(selectedPlan, 'cms');
-    if (hasCms) {
-      step = 3;  // show site creation
-    } else {
+    if (!hasCms) {
       // Social-only — no site needed, go straight to dashboard
       goto('/dashboard/cms');
-    } 
+      return;
+    }    
+    step = 3; 
   }
 
   // ── Step 3 — First site ────────────────────────────────────────────────────
@@ -162,18 +162,19 @@
                 {@const plan       = planById[planId]}
                 {@const isSelected = selectedPlan === planId}
                 {@const isPaid     = (plan.price_month ?? 0) > 0}
+                {@const isSocial   = can(planId, 'social')}
 
                 <button
                   class="ob__plan"
                   class:ob__plan--selected={isSelected}
-                  class:ob__plan--paid={isPaid}
-                  onclick={() => { if (!isPaid) selectedPlan = planId; }}
-                  disabled={isPaid}
+                  class:ob__plan--paid={isSocial}
+                  onclick={() => { if (!isSocial) selectedPlan = planId; }}
+                  disabled={isSocial}
                 >
-                  {#if plan.highlighted && !isPaid}
+                  {#if plan.highlighted}
                     <span class="ob__badge ob__badge--popular">Popular</span>
                   {/if}
-                  {#if isPaid}
+                  {#if isSocial}
                     <span class="ob__badge ob__badge--soon">Coming soon</span>
                   {/if}
 
