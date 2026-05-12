@@ -1,10 +1,10 @@
 // =============================================================================
-// adapter/foundiq/FoundyAdapter.ts
+// adapter/foundiq/FoundiqAdapter.ts
 // Requires: AuthAdapter + OrganisationAdapter already booted.
 // =============================================================================
 import type { IAdapter }         from '$lib/server/framework/adapter/IAdapter';
 import type { AdapterSchema }    from '$lib/server/framework/adapter/AdapterSchema';
-import { foundySchema }          from './schema';
+import { foundiqSchema }          from './schema';
 import { MigrationRunner }       from '$lib/server/framework/services/database/MigrationRunner';
 import { bus }                   from '$lib/server/framework/services/bus/BusService';
 import type { DataService }      from '$lib/server/framework/services/database/DataService';
@@ -19,7 +19,7 @@ export class FoundiqAdapter implements IAdapter {
   readonly version  = '1.0.0';
   readonly tags     = ['foundiq'];
   readonly requires = ['db', 'org'];
-  readonly schema: AdapterSchema = foundySchema;
+  readonly schema: AdapterSchema = foundiqSchema;
 
   async init(): Promise<void> {
     const db = bus.get<DataService>('db');

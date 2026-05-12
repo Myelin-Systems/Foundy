@@ -4,7 +4,7 @@
 
 import type { AdapterSchema } from '$lib/server/framework/adapter/AdapterSchema';
 
-export const foundySchema: AdapterSchema = {
+export const foundiqSchema: AdapterSchema = {
   tables: [
 
     // ── sites ─────────────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@
 //   2. bus.boot() — activates all 'always' services
 //   3. AuthAdapter     — creates users + sessions tables
 //   4. OrgAdapter      — creates organisations + org_members (refs users)
-//   5. FoundyAdapter   — creates sites + content (refs organisations)
+//   5. FoundiqAdapter   — creates sites + content (refs organisations)
 //   6. SocialAdapter   — creates social_accounts + social_posts (refs organisations)
 // =============================================================================
 

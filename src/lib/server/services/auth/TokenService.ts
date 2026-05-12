@@ -66,6 +66,6 @@ export class TokenService implements IService {
     }
   }
 
-  cookieName():    string { return 'foundy_session'; }
+  cookieName():    string { return 'foundiq_session'; }
   expirySeconds(): number { return this.expiry; }
 }
