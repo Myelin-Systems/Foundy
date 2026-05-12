@@ -40,7 +40,7 @@ export async function bootstrap(): Promise<void> {
   await new OrganisationAdapter().init();
   await new FoundiqAdapter().init();
   await new PaymentAdapter({
-    mollieApiKey:  requireEnv('MOLLIE_API_KEY'),
+    mollieApiKey:  requireEnv('MOLLIE_API_KEY_' + (process.env.NODE_ENV === 'production' ? 'LIVE' : 'TEST')),
     webhookUrl:    requireEnv('PUBLIC_URL') + '/api/billing/webhook',
     redirectUrl:   requireEnv('PUBLIC_URL') + '/dashboard/billing',
   }).init();
