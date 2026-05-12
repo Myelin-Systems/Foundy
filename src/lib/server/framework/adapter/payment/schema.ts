@@ -81,7 +81,7 @@ export const paymentSchema: AdapterSchema = {
         { name: 'mollie_payment_id',   type: 'varchar', length: 128, notNull: true, unique: true },
         { name: 'amount_cents',        type: 'integer',  notNull: true },
         { name: 'currency',            type: 'varchar',  length: 3, notNull: true, default: "'EUR'" },
-       { name: 'invoice_status', type: 'enum', notNull: true,
+       { name: 'status', type: 'enum', notNull: true,
   enumValues: ['open', 'paid', 'failed', 'cancelled', 'expired', 'refunded'] },
         { name: 'paid_at',             type: 'timestamp' },
         { name: 'description',         type: 'text' },
