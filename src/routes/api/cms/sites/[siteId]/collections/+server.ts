@@ -28,12 +28,14 @@ export const POST: RequestHandler = async ({ request, cookies, params }) => {
 
   // ── Tier limit: collections per site ─────────────────────────────────────
   const { rows: limitRows } = await db.query<{ plan: string; col_count: string }>(
-    `SELECT o.plan, COUNT(c.id) AS col_count
-     FROM   organisations o
-     LEFT JOIN sites       s ON s.org_id  = o.id AND s.id = $2 AND s.deleted_at IS NULL
-     LEFT JOIN collections c ON c.site_id = s.id AND c.deleted_at IS NULL
-     WHERE  o.id = $1 AND o.deleted_at IS NULL
-     GROUP BY o.plan`,
+    `SELECT COALESCE(p.slug, 'cms_starter') AS plan, COUNT(c.id) AS col_count
+FROM organisations o
+LEFT JOIN subscriptions s ON s.org_id = o.id
+LEFT JOIN plans p ON p.id = s.plan_id
+LEFT JOIN sites       st ON st.org_id  = o.id AND st.id = $2 AND st.deleted_at IS NULL
+LEFT JOIN collections c  ON c.site_id  = st.id AND c.deleted_at IS NULL
+WHERE o.id = $1 AND o.deleted_at IS NULL
+GROUP BY p.slug`,
     [session.oid, params.siteId]
   );
 

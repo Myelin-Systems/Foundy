@@ -33,10 +33,12 @@ export const POST: RequestHandler = async ({ request, cookies, params }) => {
 
   // ── Tier limit ────────────────────────────────────────────────────────────
   const { rows: usageRows } = await db.query<{ plan: string; entry_count: string }>(
-    `SELECT o.plan, COALESCE(u.entry_count, 0) AS entry_count
-     FROM   organisations o
-     LEFT JOIN org_usage u ON u.org_id = o.id
-     WHERE  o.id = $1 AND o.deleted_at IS NULL`,
+    `SELECT COALESCE(p.slug, 'cms_starter') AS plan, COALESCE(u.entry_count, 0) AS entry_count
+FROM organisations o
+LEFT JOIN subscriptions s ON s.org_id = o.id
+LEFT JOIN plans p ON p.id = s.plan_id
+LEFT JOIN org_usage u ON u.org_id = o.id
+WHERE o.id = $1 AND o.deleted_at IS NULL`,
     [session.oid]
   );
 

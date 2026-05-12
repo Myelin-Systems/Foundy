@@ -60,24 +60,26 @@ export class UsageService implements IService {
     // org_usage is maintained incrementally — this query is O(1) regardless
     // of how many sites, entries, or files the org has.
     const { rows } = await db.query<{
-      plan:             string;
-      site_count:       string;
-      collection_count: string;
-      entry_count:      string;
-      db_bytes:         string;
-      file_bytes:       string;
-    }>(`
-      SELECT
-        o.plan,
-        COALESCE(u.site_count,       0) AS site_count,
-        COALESCE(u.collection_count, 0) AS collection_count,
-        COALESCE(u.entry_count,      0) AS entry_count,
-        COALESCE(u.db_bytes,         0) AS db_bytes,
-        COALESCE(u.file_bytes,       0) AS file_bytes
-      FROM organisations o
-      LEFT JOIN org_usage u ON u.org_id = o.id
-      WHERE o.id = $1 AND o.deleted_at IS NULL
-    `, [orgId]);
+  plan:             string;
+  site_count:       string;
+  collection_count: string;
+  entry_count:      string;
+  db_bytes:         string;
+  file_bytes:       string;
+}>(`
+  SELECT
+    COALESCE(p.slug, 'cms_starter') AS plan,
+    COALESCE(u.site_count,       0) AS site_count,
+    COALESCE(u.collection_count, 0) AS collection_count,
+    COALESCE(u.entry_count,      0) AS entry_count,
+    COALESCE(u.db_bytes,         0) AS db_bytes,
+    COALESCE(u.file_bytes,       0) AS file_bytes
+  FROM organisations o
+  LEFT JOIN subscriptions s ON s.org_id = o.id
+  LEFT JOIN plans p ON p.id = s.plan_id
+  LEFT JOIN org_usage u ON u.org_id = o.id
+  WHERE o.id = $1 AND o.deleted_at IS NULL
+`, [orgId]);
  
     const row  = rows[0];
     const plan = getPlan(row?.plan ?? 'cms_starter');

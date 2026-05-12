@@ -128,13 +128,4 @@ export const foundySchema: AdapterSchema = {
     },
 
   ],
-
-  extensions: [
-    {
-      table: 'organisations',
-      columns: [
-        { name: 'plan', type: 'varchar', length: 30, notNull: true, default: "'cms_starter'" },
-      ],
-    },
-  ],
 };
