@@ -11,6 +11,11 @@
 //   4. handleWebhook()         → on renewal: update period, write invoice
 //   5. cancelSubscription()    → sets cancel_at_period_end or immediate
 //
+// VAT logic (NL-based SaaS, below OSS €10k threshold):
+//   EU B2B + valid VAT number → 0%, reverse charge (BTW verlegd)
+//   EU B2C (incl. NL)         → 21% Dutch rate
+//   Non-EU                    → 0%, no VAT
+//
 // npm install @mollie/api-client
 // =============================================================================
 
@@ -20,22 +25,25 @@ import type { DataService }         from '../../framework/services/database/Data
 import type { EmailService }        from '../email/EmailService';
 
 // ── Domain types ──────────────────────────────────────────────────────────────
-
 export interface DbPlan {
-  id:               string;
-  slug:             string;
-  name:             string;
-  price_year_cents: number | null;
+  id:                string;
+  slug:              string;
+  name:              string;
+  tagline:           string;        // added — mirrors plans schema
+  price_year_cents:  number | null;
   price_month_cents: number | null;
-  currency:         string;
-  interval:         'month' | 'year';
-  interval_count:   number;
-  site_limit:       number;
-  api_calls_limit:  number;
-  storage_mb:       number;
-  active:           boolean;
-  mollie_plan_id:   string | null;
-  features:         string[] | null;
+  currency:          string;
+  interval:          'month' | 'year';
+  interval_count:    number;
+  site_limit:        number;
+  api_calls_limit:   number;
+  storage_mb:        number;
+  active:            boolean;
+  highlighted:       boolean;       // added — mirrors plans schema
+  features:          string[] | null;
+  limits:            Record<string, unknown> | null;  // added — mirrors plans schema
+  bullets:           string[] | null;                 // added — mirrors plans schema
+  mollie_plan_id:    string | null;
 }
 
 export interface Subscription {
@@ -60,12 +68,33 @@ export interface Invoice {
   org_id:              string;
   subscription_id:     string | null;
   mollie_payment_id:   string;
-  amount_cents:        number;
   currency:            string;
+  // Amount breakdown
+  subtotal_cents:      number;      // excl. VAT
+  vat_rate_pct:        number;      // 0 or 21 (snapshot at payment time)
+  vat_amount_cents:    number;      // 0 for reverse charge / non-EU
+  vat_reverse_charge:  boolean;     // true = BTW verlegd
+  amount_cents:        number;      // total charged (subtotal + vat_amount)
+  // Fee tracking
+  mollie_fee_cents:    number;      // estimated/corrected transaction fee
+  net_revenue_cents:   number;      // subtotal - mollie_fee
   status:              InvoiceStatus;
   paid_at:             string | null;
   description:         string | null;
   mollie_checkout_url: string | null;
+  created_at:          string;      // added — timestamps: true in schema
+  updated_at:          string;      // added — timestamps: true in schema
+}
+
+// Org billing fields fetched at checkout time
+export interface OrgBilling {                         // exported — used in +page.server.ts
+  name:                string;
+  billing_name:        string | null;
+  billing_country:     string | null;
+  billing_address:     string | null;
+  billing_postal_code: string | null;
+  billing_city:        string | null;
+  vat_number:          string | null;
 }
 
 export type SubscriptionStatus =
@@ -75,28 +104,26 @@ export type InvoiceStatus =
   | 'open' | 'paid' | 'failed' | 'cancelled' | 'expired' | 'refunded';
 
 export interface CheckoutResult {
-  checkoutUrl:  string;   // redirect user here
-  paymentId:    string;   // tr_xxxxx — store for reference
-  invoiceId:    string;   // our DB invoice ID
+  checkoutUrl: string;
+  paymentId:   string;
+  invoiceId:   string;
 }
 
 export class PaymentError extends Error {
   constructor(
-    public readonly code:    string,
-    message:                 string,
-    public readonly status:  number = 400,
+    public readonly code:   string,
+    message:                string,
+    public readonly status: number = 400,
   ) {
     super(message);
     this.name = 'PaymentError';
   }
 }
 
-// ── MollieService config ──────────────────────────────────────────────────────
-
 export interface MollieServiceConfig {
-  apiKey:         string;   // process.env.MOLLIE_API_KEY  (test_xxx or live_xxx)
-  webhookUrl:     string;   // publicly reachable URL e.g. https://foundiq.io/api/billing/webhook
-  redirectUrl:    string;   // where to send user after payment e.g. https://foundiq.io/dashboard/billing
+  apiKey:      string;
+  webhookUrl:  string;   // https://api.foundiq.nl/v1/billing/webhook
+  redirectUrl: string;   // https://app.foundiq.nl/dashboard/billing
 }
 
 // ── MollieService ─────────────────────────────────────────────────────────────
@@ -104,11 +131,19 @@ export interface MollieServiceConfig {
 export class MollieService implements IService {
 
   readonly name    = 'mollie';
-  readonly version = '1.0.0';
+  readonly version = '1.3.4';
   readonly tags    = ['core', 'payment', 'mollie'];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private client!: any;
+
+  // EU member state ISO 3166-1 alpha-2 codes.
+  // Used to determine VAT treatment. Update if EU membership changes.
+  private static readonly EU_COUNTRIES = new Set([
+    'AT','BE','BG','CY','CZ','DE','DK','EE','ES','FI','FR','GR',
+    'HR','HU','IE','IT','LT','LU','LV','MT','NL','PL','PT','RO',
+    'SE','SI','SK',
+  ]);
 
   constructor(private readonly config: MollieServiceConfig) {}
 
@@ -126,7 +161,6 @@ export class MollieService implements IService {
 
   async healthCheck(): Promise<boolean> {
     try {
-      // A cheap API call to verify the key is valid
       await this.client.methods.list();
       return true;
     } catch {
@@ -134,23 +168,89 @@ export class MollieService implements IService {
     }
   }
 
-  // ── Plans ────────────────────────────────────────────────────────────────────
+  // ── VAT helpers ───────────────────────────────────────────────────────────────
 
   /**
-   * Fetch all active plans from the DB.
+   * Resolve the VAT situation for an organisation.
+   *
+   * Rules (NL-based SaaS, below OSS €10k threshold):
+   *   B2B + valid EU VAT number → 0%, reverse charge (BTW verlegd)
+   *   EU B2C (including NL)     → 21% Dutch rate
+   *   Non-EU                    → 0%, no VAT obligation
+   *
+   * OSS note: if cross-border EU B2C revenue exceeds €10,000/year you must
+   * register for OSS and apply destination-country rates instead of 21%.
+   * Confirm the threshold with your boekhouder.
    */
+  // Per-country standard VAT rates for digital services (2026)
+  private static readonly EU_VAT_RATES: Record<string, number> = {
+    AT: 20, BE: 21, BG: 20, CY: 19, CZ: 21, DE: 19,
+    DK: 25, EE: 22, ES: 21, FI: 25, FR: 20, GR: 24,
+    HR: 25, HU: 27, IE: 23, IT: 22, LT: 21, LU: 17,
+    LV: 21, MT: 18, NL: 21, PL: 23, PT: 23, RO: 19,
+    SE: 25, SI: 22, SK: 20,
+  };
+
+  private static readonly OSS_REGISTERED = process.env.OSS_REGISTERED === 'true';
+
+  private resolveVat(country: string | null, vatNumber: string | null): {
+    vatRatePct:    number;
+    reverseCharge: boolean;
+  } {
+    const c = (country ?? '').toUpperCase();
+
+    // B2B EU + valid VAT number → reverse charge, 0% always
+    if (vatNumber && MollieService.EU_VAT_RATES[c] !== undefined) {
+      return { vatRatePct: 0, reverseCharge: true };
+    }
+
+    // Non-EU → 0%, outside scope
+    if (MollieService.EU_VAT_RATES[c] === undefined) {
+      return { vatRatePct: 0, reverseCharge: false };
+    }
+
+    // EU B2C → Dutch 21% until OSS registered, then destination country rate
+    const rate = MollieService.OSS_REGISTERED
+      ? MollieService.EU_VAT_RATES[c]
+      : 21;
+
+    return { vatRatePct: rate, reverseCharge: false };
+  }
+
+
+  /**
+   * Estimate the Mollie transaction fee for profit tracking.
+   * Figures are approximations — actual fee depends on your Mollie contract tier.
+   *
+   *   iDEAL:        €0.29 flat
+   *   Bancontact:   €0.31 flat
+   *   SEPA Direct:  €0.25 + 0.20% (capped €2.25)
+   *   Credit/debit: €0.25 + 1.80%
+   *   Other:        €0.25 + 0.50% (safe fallback)
+   */
+  private estimateMollieFee(amountCents: number, method: string): number {
+    switch (method) {
+      case 'ideal':       return 29;
+      case 'bancontact':  return 31;
+      case 'directdebit': return Math.min(25 + Math.round(amountCents * 0.002), 225);
+      case 'creditcard':
+      case 'applepay':
+      case 'googlepay':   return 25 + Math.round(amountCents * 0.018);
+      default:            return 25 + Math.round(amountCents * 0.005);
+    }
+  }
+
+  // ── Plans ────────────────────────────────────────────────────────────────────
+
   async getPlans(): Promise<DbPlan[]> {
     const db = bus.get<DataService>('db');
     const { rows } = await db.from<DbPlan>('plans')
       .where('active', true)
-      .orderBy('price_cents', 'asc')
+      .orderBy('price_month_cents', 'asc')
       .run();
     return rows;
   }
 
-  /**
-   * Fetch one plan by slug.
-   */
   async getPlanBySlug(slug: string): Promise<DbPlan | null> {
     const db = bus.get<DataService>('db');
     return db.from<DbPlan>('plans').where('slug', slug).first();
@@ -158,16 +258,12 @@ export class MollieService implements IService {
 
   // ── Subscription reads ───────────────────────────────────────────────────────
 
-  /**
-   * Get the subscription for an org. Creates a free-tier subscription if none exists.
-   */
   async getOrCreateSubscription(orgId: string): Promise<Subscription & { plan: DbPlan }> {
-    const db  = bus.get<DataService>('db');
+    const db = bus.get<DataService>('db');
 
     let sub = await db.from<Subscription>('subscriptions').where('org_id', orgId).first();
 
     if (!sub) {
-      // New org — assign free plan
       const freePlan = await this.getPlanBySlug('cms_starter');
       if (!freePlan) throw new PaymentError('PLAN_NOT_FOUND', 'Free plan not configured.', 500);
 
@@ -179,64 +275,112 @@ export class MollieService implements IService {
     }
 
     const plan = await db.from<DbPlan>('plans').where('id', sub.plan_id).first();
-    if (!plan) throw new PaymentError('PLAN_NOT_FOUND', 'DbPlan not found for subscription.', 500);
+    if (!plan) throw new PaymentError('PLAN_NOT_FOUND', 'Plan not found for subscription.', 500);
 
     return { ...sub, plan };
   }
 
-  /**
-   * Check whether an org is allowed to use a feature.
-   * Used by API delivery layer to gate requests.
-   */
   isActive(sub: Subscription): boolean {
     return sub.status === 'active' || sub.status === 'free';
   }
 
   // ── Checkout ─────────────────────────────────────────────────────────────────
 
+  private countryToLocale(country: string | null | undefined): string {
+    const map: Record<string, string> = {
+      NL: 'nl_NL', BE: 'nl_BE', DE: 'de_DE', FR: 'fr_FR',
+      AT: 'de_AT', ES: 'es_ES', IT: 'it_IT', PT: 'pt_PT',
+      PL: 'pl_PL', FI: 'fi_FI', DK: 'da_DK', SE: 'sv_SE',
+      NO: 'nb_NO', HU: 'hu_HU', GB: 'en_GB',
+    };
+    return map[country?.toUpperCase() ?? ''] ?? 'en_US';
+  }
+
+  private countryToCurrency(country: string | null | undefined): string {
+    const map: Record<string, string> = {
+      GB: 'GBP',
+      US: 'USD',
+      CA: 'CAD',
+      AU: 'AUD',
+      CH: 'CHF',
+      NO: 'NOK',
+      SE: 'SEK',
+      DK: 'DKK',
+      PL: 'PLN',
+      HU: 'HUF',
+      CZ: 'CZK',
+      RO: 'RON',
+    };
+    // Everyone else (NL, DE, FR, BE, ES, IT...) pays EUR
+    return map[country?.toUpperCase() ?? ''] ?? 'EUR';
+  }
+
   /**
    * Create a Mollie first-payment checkout URL.
-   * The user is redirected to this URL to pay via iDEAL, Wero, or card.
-   * On success, Mollie POSTs to /api/billing/webhook.
+   * Requires billing_country to be set on the org — throws BILLING_INCOMPLETE if not.
    */
   async createCheckout(params: {
-    orgId:       string;
-    orgName:     string;
-    planSlug:    string;
-    userEmail:   string;
-    billingCycle?: 'month' | 'year';
+    orgId:          string;
+    orgName:        string;
+    planSlug:       string;
+    userEmail:      string;
+    billingCycle?:  'month' | 'year';
+    billingCountry?: string | null;
   }): Promise<CheckoutResult> {
 
     const db   = bus.get<DataService>('db');
     const plan = await this.getPlanBySlug(params.planSlug);
-    if (!plan)          throw new PaymentError('PLAN_NOT_FOUND', `DbPlan "${params.planSlug}" not found.`);
-    if (!plan.active)   throw new PaymentError('PLAN_INACTIVE',  `DbPlan "${params.planSlug}" is not available.`);
-    if (plan.price_month_cents === 0) throw new PaymentError('PLAN_FREE', 'Cannot checkout free plan.');
-    
-    plan.currency = 'EUR';//FIXME: support other currencies
 
-    // Get or create Mollie customer for this org
-    const sub          = await this.getOrCreateSubscription(params.orgId);
-    const customerId   = await this.ensureMollieCustomer(sub, params.orgName, params.userEmail);
+    if (!plan)        throw new PaymentError('PLAN_NOT_FOUND', `Plan "${params.planSlug}" not found.`);
+    if (!plan.active) throw new PaymentError('PLAN_INACTIVE',  `Plan "${params.planSlug}" is not available.`);
 
-    // Amount in euros (Mollie uses string decimal e.g. "9.00")
     const priceCents = params.billingCycle === 'year'
       ? plan.price_year_cents
       : plan.price_month_cents;
 
-    const amount = this.centsToCurrency(priceCents!, 'EUR');
-    
-    // Create the first payment — sequenceType 'first' creates a mandate
+    if (!priceCents || priceCents === 0) {
+      throw new PaymentError('PLAN_FREE', 'Cannot checkout free plan.');
+    }
+
+    // Fetch org billing info — country required before checkout
+    const org = await db.from<OrgBilling>('organisations').where('id', params.orgId).first();
+
+    if (!org?.billing_country) {
+      throw new PaymentError(
+        'BILLING_INCOMPLETE',
+        'Organisation billing country is required before checkout.',
+        422,
+      );
+    }
+
+    // Resolve VAT treatment from country + VAT number
+    const { vatRatePct, reverseCharge } = this.resolveVat(
+      org.billing_country ?? null,
+      org.vat_number ?? null,
+    );
+
+    // Price breakdown
+    // Assumption: priceCents is the gross (VAT-inclusive) amount shown to users.
+    // If your pricing is ex-VAT, swap the formula accordingly.
+    const subtotalCents  = vatRatePct > 0
+      ? Math.round(priceCents * 100 / (100 + vatRatePct))
+      : priceCents;
+    const vatAmountCents = priceCents - subtotalCents;
+
+    const sub        = await this.getOrCreateSubscription(params.orgId);
+    const customerId = await this.ensureMollieCustomer(sub, params.orgName, params.userEmail);
+
+    const currency = this.countryToCurrency(org.billing_country);
+    const amount   = this.centsToCurrency(priceCents, currency);
+
     const payment = await this.client.payments.create({
-      amount: {
-        currency: plan.currency, 
-        value:    amount,
-      },
+      amount:       { currency: currency, value: amount },
       customerId,
-      sequenceType:  'first',
-      description: `Foundiq ${plan.name} — ${params.billingCycle === 'year' ? 'Annual' : 'Monthly'} subscription`,
-      redirectUrl:   `${this.config.redirectUrl}?payment=pending`,
-      webhookUrl:    this.config.webhookUrl,
+      sequenceType: 'first',
+      description:  `Foundiq ${plan.name} — ${params.billingCycle === 'year' ? 'Annual' : 'Monthly'} subscription`,
+      redirectUrl:  `${this.config.redirectUrl}?payment=pending`,
+      webhookUrl:   this.config.webhookUrl,
+      locale:       this.countryToLocale(params.billingCountry),   // ← nieuw
       metadata: {
         org_id:    params.orgId,
         plan_id:   plan.id,
@@ -245,29 +389,37 @@ export class MollieService implements IService {
       },
     });
 
-    // Write pending invoice for audit trail
+    // Estimate fee at iDEAL rate (method unknown until payment completes)
+    const mollieFee    = this.estimateMollieFee(priceCents, 'ideal');
+    const netRevenue   = subtotalCents - mollieFee;
+
     const { rows: invoiceRows } = await db.from<Invoice>('invoices')
       .insert({
-        org_id:               params.orgId,
-        subscription_id:      sub.id,
-        mollie_payment_id:    payment.id,
-        amount_cents:         priceCents ?? 0,
-        currency:             plan.currency,
-        status:               'open',
-        description:          `Foundiq ${plan.name} subscription`,
-        mollie_checkout_url:  payment.getCheckoutUrl() ?? null,
+        org_id:              params.orgId,
+        subscription_id:     sub.id,
+        mollie_payment_id:   payment.id,
+        amount_cents:        priceCents,
+        subtotal_cents:      subtotalCents,
+        vat_rate_pct:        vatRatePct,
+        vat_amount_cents:    vatAmountCents,
+        vat_reverse_charge:  reverseCharge,
+        mollie_fee_cents:    mollieFee,
+        net_revenue_cents:   netRevenue,
+        currency,
+        status:              'open',
+        description:         `Foundiq ${plan.name} subscription`,
+        mollie_checkout_url: payment.getCheckoutUrl() ?? null,
       })
       .returning(['id'])
       .run();
 
-    // Mark subscription as pending
     await db.from<Subscription>('subscriptions')
       .where('id', sub.id)
       .update({
-        status:               'pending',
-        mollie_customer_id:   customerId,
-        plan_id:              plan.id,
-      })
+        status:             'pending',
+        mollie_customer_id: customerId,
+        plan_id:            plan.id,
+      } as Partial<Subscription>)
       .run();
 
     return {
@@ -281,22 +433,42 @@ export class MollieService implements IService {
 
   /**
    * Process a Mollie webhook call.
-   * Mollie POSTs the payment ID — we fetch the full payment and process it.
-   *
-   * Idempotent: safe to call multiple times for the same payment.
+   * Idempotent — safe to call multiple times for the same payment.
    */
   async handleWebhook(molliePaymentId: string): Promise<void> {
     const db      = bus.get<DataService>('db');
     const payment = await this.client.payments.get(molliePaymentId);
     const meta    = payment.metadata as {
-      org_id:    string;
-      plan_id:   string;
-      plan_slug: string;
-      type:      'first_payment' | 'recurring';
+      org_id:        string;
+      plan_id:       string;
+      plan_slug:     string;
+      billing_cycle: string;
+      type:          'first_payment' | 'recurring';
     };
-
+    console.log(`[${this.name}] Webhook received for payment ${molliePaymentId}: status=${payment.status}, type=${meta.type}`);
     // ── Paid ─────────────────────────────────────────────────────────────────
     if (payment.status === 'paid') {
+      // Correct the fee estimate now that we know the actual payment method
+      const actualFee = this.estimateMollieFee(
+        Math.round(parseFloat(payment.amount.value) * 100),
+        payment.method ?? 'other',
+      );
+
+      const invoice = await db.from<Invoice>('invoices')
+        .where('mollie_payment_id', molliePaymentId)
+        .first();
+
+      if (invoice) {
+        const netRevenue = invoice.subtotal_cents - actualFee;
+        await db.from<Invoice>('invoices')
+          .where('mollie_payment_id', molliePaymentId)
+          .update({
+            mollie_fee_cents:  actualFee,
+            net_revenue_cents: netRevenue,
+          } as Partial<Invoice>)
+          .run();
+      }
+
       await this.handlePaymentPaid(payment, meta, db);
     }
 
@@ -317,11 +489,6 @@ export class MollieService implements IService {
 
   // ── Cancel subscription ───────────────────────────────────────────────────────
 
-  /**
-   * Cancel a subscription.
-   * immediate=false (default) → access until end of current period.
-   * immediate=true            → cancel now, no refund.
-   */
   async cancelSubscription(orgId: string, immediate = false): Promise<void> {
     const db  = bus.get<DataService>('db');
     const sub = await db.from<Subscription>('subscriptions').where('org_id', orgId).first();
@@ -329,15 +496,13 @@ export class MollieService implements IService {
     if (!sub) throw new PaymentError('SUB_NOT_FOUND', 'No subscription found for this org.');
     if (sub.status === 'free') throw new PaymentError('SUB_FREE', 'Free plan cannot be cancelled.');
 
-    // Cancel in Mollie
     if (sub.mollie_subscription_id && sub.mollie_customer_id) {
       try {
-        await this.client.subscriptions.cancel({
+        await this.clientSubscriptions.cancel({
           id:         sub.mollie_subscription_id,
           customerId: sub.mollie_customer_id,
         });
       } catch (err) {
-        // If already cancelled in Mollie, continue — we still update our DB
         console.warn(`[${this.name}] Mollie subscription cancel warning:`, (err as Error).message);
       }
     }
@@ -358,22 +523,23 @@ export class MollieService implements IService {
     }
   }
 
-  // ── DbPlan change ───────────────────────────────────────────────────────────────
+  // ── Plan change ───────────────────────────────────────────────────────────────
 
-  /**
-   * Upgrade or downgrade a subscription.
-   * Upgrade: cancel current Mollie subscription, create new checkout for new plan.
-   * Downgrade: schedule change at period end.
-   */
-  async changePlan(orgId: string, orgName: string, userEmail: string, newPlanSlug: string): Promise<CheckoutResult | null> {
+  async changePlan(
+    orgId:      string,
+    orgName:    string,
+    userEmail:  string,
+    newPlanSlug: string,
+  ): Promise<CheckoutResult | null> {
     const db      = bus.get<DataService>('db');
     const sub     = await this.getOrCreateSubscription(orgId);
     const newPlan = await this.getPlanBySlug(newPlanSlug);
 
-    if (!newPlan) throw new PaymentError('PLAN_NOT_FOUND', `DbPlan "${newPlanSlug}" not found.`);
+    if (!newPlan) throw new PaymentError('PLAN_NOT_FOUND', `Plan "${newPlanSlug}" not found.`);
 
     // Downgrade to free — just cancel
-    if (newPlan.price_cents === 0) {
+    const isFree = (newPlan.price_month_cents ?? 0) === 0 && (newPlan.price_year_cents ?? 0) === 0;
+    if (isFree) {
       await this.cancelSubscription(orgId, false);
       return null;
     }
@@ -381,7 +547,7 @@ export class MollieService implements IService {
     // Cancel existing Mollie subscription first
     if (sub.mollie_subscription_id && sub.mollie_customer_id) {
       try {
-        await this.client.subscriptions.cancel({
+        await this.clientSubscriptions.cancel({
           id:         sub.mollie_subscription_id,
           customerId: sub.mollie_customer_id,
         });
@@ -393,8 +559,12 @@ export class MollieService implements IService {
         .run();
     }
 
-    // Create new checkout for the new plan
-    return this.createCheckout({ orgId, orgName, planSlug: newPlanSlug, userEmail });
+    const { rows: [org] } = await db.query<{ billing_country: string | null }>(
+      `SELECT billing_country FROM organisations WHERE id = $1`,
+      [orgId]
+    );
+
+    return this.createCheckout({ orgId, orgName, planSlug: newPlanSlug, userEmail, billingCountry: org?.billing_country ?? null });
   }
 
   // ── Private — payment handlers ────────────────────────────────────────────────
@@ -406,35 +576,30 @@ export class MollieService implements IService {
       .first();
     if (!sub) return;
 
-    // First payment: get mandate and create recurring Mollie subscription
     if (meta.type === 'first_payment') {
-      const mandateId = await this.getValidMandateId(sub.mollie_customer_id!);
+      const mandateId          = await this.getValidMandateId(sub.mollie_customer_id!);
       const mollieSubscription = await this.createMollieSubscription(
-        sub.mollie_customer_id!,
-        mandateId,
-        meta.plan_id,
-        db,
+        sub.mollie_customer_id!, mandateId, meta.plan_id, (meta.billing_cycle as 'month' | 'year') ?? 'month', db,
       );
 
-      const now   = new Date();
-      const end   = this.addInterval(now, mollieSubscription.interval, mollieSubscription.times ?? 1);
+      const now = new Date();
+      const end = this.addInterval(now, mollieSubscription.interval, mollieSubscription.times ?? 1);
 
       await db.from<Subscription>('subscriptions')
         .where('org_id', meta.org_id)
         .update({
-          status:                  'active',
-          plan_id:                 meta.plan_id,
-          mollie_mandate_id:       mandateId,
-          mollie_subscription_id:  mollieSubscription.id,
-          current_period_start:    now.toISOString(),
-          current_period_end:      end.toISOString(),
-          cancel_at_period_end:    false,
+          status:                 'active',
+          plan_id:                meta.plan_id,
+          mollie_mandate_id:      mandateId,
+          mollie_subscription_id: mollieSubscription.id,
+          current_period_start:   now.toISOString(),
+          current_period_end:     end.toISOString(),
+          cancel_at_period_end:   false,
         } as Partial<Subscription>)
         .run();
 
       console.log(`[${this.name}] Subscription activated for org ${meta.org_id}`);
 
-      // Send invoice email — fire and forget, never block the webhook
       this.sendInvoiceEmail({
         payment,
         orgId:       meta.org_id,
@@ -445,9 +610,8 @@ export class MollieService implements IService {
       }).catch(err => console.error(`[${this.name}] Invoice email failed:`, err));
     }
 
-    // Recurring payment: renew the period
     if (meta.type === 'recurring') {
-      const plan  = await db.from<DbPlan>('plans').where('id', meta.plan_id).first();
+      const plan = await db.from<DbPlan>('plans').where('id', meta.plan_id).first();
       if (!plan) return;
 
       const now = new Date();
@@ -462,14 +626,8 @@ export class MollieService implements IService {
         } as Partial<Subscription>)
         .run();
 
-      // Send renewal invoice email
       this.sendInvoiceEmail({
-        payment,
-        orgId:       meta.org_id,
-        plan,
-        periodStart: now,
-        periodEnd:   end,
-        db,
+        payment, orgId: meta.org_id, plan, periodStart: now, periodEnd: end, db,
       }).catch(err => console.error(`[${this.name}] Renewal invoice email failed:`, err));
     }
   }
@@ -483,48 +641,64 @@ export class MollieService implements IService {
     periodEnd:   Date;
     db:          DataService;
   }): Promise<void> {
-    // Guard: email service might not be registered in all environments
     if (!bus.has('email') || !bus.isActive('email')) return;
-
     const emailSvc = bus.get<EmailService>('email');
 
-    // Fetch the user who owns this org (the org owner)
-    const { rows: members } = await params.db.query<{ email: string; full_name: string }>(
-      `SELECT u.email, u.full_name
-       FROM org_members om
-       JOIN users u ON u.id = om.user_id
-       WHERE om.org_id = $1 AND om.role = 'owner' AND om.deleted_at IS NULL
-       LIMIT 1`,
-      [params.orgId]
-    );
+    const [orgResult, membersResult, invoiceResult] = await Promise.all([
+      params.db.from<OrgBilling>('organisations').where('id', params.orgId).first(),
+      params.db.query<{ email: string; full_name: string }>(
+        `SELECT u.email, u.full_name
+         FROM org_members om JOIN users u ON u.id = om.user_id
+         WHERE om.org_id = $1 AND om.role = 'owner' AND om.deleted_at IS NULL
+         LIMIT 1`,
+        [params.orgId],
+      ),
+      params.db.from<Invoice>('invoices')
+        .where('mollie_payment_id', params.payment.id)
+        .first(),
+    ]);
 
-    if (!members[0]) return; // no owner found — skip silently
+    if (!membersResult.rows[0] || !orgResult || !invoiceResult) return;
 
-    const invoiceNumber = this.generateInvoiceNumber(params.payment.id);
-    const locale        = 'nl-NL';
-    const fmt           = (d: Date) => d.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
+    const org     = orgResult;
+    const member  = membersResult.rows[0];
+    const invoice = invoiceResult;
+
+    const locale = 'nl-NL';
+    const fmt    = (d: Date) =>
+      d.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
 
     await emailSvc.sendInvoice({
-      toEmail:       members[0].email,
-      toName:        members[0].full_name,
-      invoiceNumber,
-      paymentDate:   fmt(new Date()),
-      planName:      params.plan.name,
-      periodStart:   fmt(params.periodStart),
-      periodEnd:     fmt(params.periodEnd),
-      amountCents:   params.plan.price_cents,
-      currency:      params.plan.currency,
-      paymentMethod: params.payment.method ?? 'iDEAL',
-      orgName:       params.orgId,  // resolved to org name by query above if needed
-      dashboardUrl:  `${process.env.PUBLIC_URL ?? ''}/dashboard/billing`,
-    });
-  }
+      toEmail:        member.email,
+      toName:         member.full_name,
+      invoiceNumber:  this.generateInvoiceNumber(params.payment.id),
+      paymentDate:    fmt(new Date()),
+      planName:       params.plan.name,
+      periodStart:    fmt(params.periodStart),
+      periodEnd:      fmt(params.periodEnd),
+      paymentMethod:  params.payment.method ?? 'iDEAL',
+      dashboardUrl:   `${process.env.PUBLIC_URL ?? ''}/dashboard/billing`,
 
-  private generateInvoiceNumber(molliePaymentId: string): string {
-    // INV-2026-TR12345 — deterministic from payment ID
-    const year = new Date().getFullYear();
-    const short = molliePaymentId.replace('tr_', '').slice(0, 8).toUpperCase();
-    return `INV-${year}-${short}`;
+      // Billing address
+      billingName:    org.billing_name ?? org.name,
+      billingAddress: org.billing_address ?? null,
+      billingPostal:  org.billing_postal_code ?? null,
+      billingCity:    org.billing_city ?? null,
+      billingCountry: org.billing_country ?? null,
+      vatNumber:      org.vat_number ?? null,
+
+      // VAT breakdown from stored invoice (already computed at checkout)
+      subtotalCents:  invoice.subtotal_cents,
+      vatRatePct:     invoice.vat_rate_pct,
+      vatAmountCents: invoice.vat_amount_cents,
+      reverseCharge:  invoice.vat_reverse_charge,
+      totalCents:     invoice.amount_cents,
+      currency:       invoice.currency,
+
+      // Internal profit tracking
+      mollieFee:      invoice.mollie_fee_cents,
+      netRevenue:     invoice.net_revenue_cents,
+    });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -540,11 +714,10 @@ export class MollieService implements IService {
   // ── Private — Mollie helpers ──────────────────────────────────────────────────
 
   private async ensureMollieCustomer(
-    sub:       Subscription,
+    sub:       Subscription & { plan: DbPlan },
     orgName:   string,
     userEmail: string,
   ): Promise<string> {
-
     if (sub.mollie_customer_id) return sub.mollie_customer_id;
 
     const customer = await this.client.customers.create({
@@ -562,70 +735,76 @@ export class MollieService implements IService {
   }
 
   private async getValidMandateId(customerId: string): Promise<string> {
-    const mandates = await this.client.mandates.list({ customerId });
+    const mandates = await this.client.customerMandates.list({ customerId });
     const valid    = mandates.find((m: { status: string }) => m.status === 'valid');
     if (!valid) throw new PaymentError('MANDATE_NOT_FOUND', 'No valid mandate found after payment.');
     return valid.id;
   }
 
   private async createMollieSubscription(
-    customerId: string,
-    mandateId:  string,
-    planId:     string,
-    db:         DataService,
+    customerId:   string,
+    mandateId:    string,
+    planId:       string,
+    billingCycle: 'month' | 'year',
+    db:           DataService,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    const plan   = await db.from<DbPlan>('plans').where('id', planId).first();
-    if (!plan)   throw new PaymentError('PLAN_NOT_FOUND', 'DbPlan not found.', 500);
+    const plan = await db.from<DbPlan>('plans').where('id', planId).first();
+    if (!plan)  throw new PaymentError('PLAN_NOT_FOUND', 'Plan not found.', 500);
+    const mollieInterval = billingCycle === 'year' ? '12 months' : '1 months';
+    const nextChargeDate = billingCycle === 'year'
+      ? new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+      : new Date(new Date().setMonth(new Date().getMonth() + 1));
+    const priceCents = billingCycle === 'year'
+      ? plan.price_year_cents
+      : plan.price_month_cents;
 
-    const nextChargeDate = this.addInterval(new Date(), plan.interval, plan.interval_count);
+    if (!priceCents) throw new PaymentError('PRICE_MISSING', 'Plan has no price for this billing cycle.');
 
-    return this.client.subscriptions.create({
+    console.log(`[${this.name}] Creating Mollie subscription: customer=${customerId}, mandate=${mandateId}, amount=${priceCents} cents, interval=${mollieInterval}, next_charge=${nextChargeDate.toISOString().split('T')[0]}`);
+    return this.client.customerSubscriptions.create({
       customerId,
       mandateId,
       amount: {
-        currency: plan.currency,
-        value:    this.centsToCurrency(plan.price_cents, plan.currency),
+        currency: 'EUR',
+        value:    this.centsToCurrency(priceCents, 'EUR'),
       },
-      interval:    `${plan.interval_count} ${plan.interval}s`,
+      interval:    mollieInterval,
       startDate:   nextChargeDate.toISOString().split('T')[0],
       description: `Foundiq ${plan.name} subscription`,
       webhookUrl:  this.config.webhookUrl,
       metadata: {
-        org_id:    '', // filled by caller — not available here, but Mollie sends webhook anyway
-        plan_id:   plan.id,
-        plan_slug: plan.slug,
-        type:      'recurring',
+        plan_id:       plan.id,
+        plan_slug:     plan.slug,
+        billing_cycle: billingCycle,
+        type:          'recurring',
       },
     });
   }
 
   // ── Private — utilities ───────────────────────────────────────────────────────
 
-  private centsToCurrency(cents: number, currency: string): string {
-    // Mollie expects exactly 2 decimal places e.g. "9.00"
-    const _currency = currency; // suppress unused warning — kept for future multi-currency
-    void _currency;
+  private centsToCurrency(cents: number, _currency: string): string {
     return (cents / 100).toFixed(2);
   }
 
-  private addInterval(date: Date, interval: string, count: number): Date {
+  private addInterval(date: Date, billingCycle: 'month' | 'year'): Date {
     const result = new Date(date);
-    if (interval === 'month') {
-      result.setMonth(result.getMonth() + count);
-    } else if (interval === 'year') {
-      result.setFullYear(result.getFullYear() + count);
-    }
+    if (billingCycle === 'year')  result.setFullYear(result.getFullYear() + 1);
+    else                          result.setMonth(result.getMonth() + 1);
     return result;
   }
 
   private mapPaymentStatus(mollieStatus: string): InvoiceStatus {
     const map: Record<string, InvoiceStatus> = {
-      paid:     'paid',
-      failed:   'failed',
-      canceled: 'cancelled',
-      expired:  'expired',
+      paid: 'paid', failed: 'failed', canceled: 'cancelled', expired: 'expired',
     };
     return map[mollieStatus] ?? 'open';
+  }
+
+  private generateInvoiceNumber(molliePaymentId: string): string {
+    const year  = new Date().getFullYear();
+    const short = molliePaymentId.replace('tr_', '').slice(0, 8).toUpperCase();
+    return `INV-${year}-${short}`;
   }
 }

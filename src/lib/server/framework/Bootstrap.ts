@@ -18,6 +18,8 @@ import { PaymentAdapter }         from '$lib/server/framework/adapter/payment/Pa
 import { OrganisationAdapter }    from '$lib/server/framework/adapter/organisation/OrganisationAdapter';
 import { FoundiqAdapter }          from '$lib/server/framework/adapter/foundiq/FoundiqAdapter';
 import { SocialAdapter }          from '$lib/server/framework/adapter/social/SocialAdapter';
+import { EmailAdapter } from './adapter/email/EmailAdapter';
+import type { EmailProvider } from '../services/email/EmailService';
 
 // let booted = false;
 
@@ -39,10 +41,17 @@ export async function bootstrap(): Promise<void> {
 
   await new OrganisationAdapter().init();
   await new FoundiqAdapter().init();
+
+  await new EmailAdapter({
+    provider:     requireEnv('EMAIL_PROVIDER') as EmailProvider,
+    from:         requireEnv('EMAIL_FROM'),
+    resendApiKey: requireEnv('RESEND_API_KEY')
+  }).init();
+
   await new PaymentAdapter({
-    mollieApiKey:  requireEnv('MOLLIE_API_KEY_' + (process.env.NODE_ENV === 'production' ? 'LIVE' : 'TEST')),
-    webhookUrl:    requireEnv('PUBLIC_URL') + '/api/billing/webhook',
-    redirectUrl:   requireEnv('PUBLIC_URL') + '/dashboard/billing',
+    mollieApiKey:  requireEnv('MOLLIE_API_KEY_' + (requireEnv('NODE_ENV') === 'production' ? 'LIVE' : 'TEST')),
+    webhookUrl:    requireEnv('MOLLIE_WEBHOOK_URL'),
+    redirectUrl:   requireEnv('MOLLIE_REDIRECT_URL'),
   }).init();
 
 

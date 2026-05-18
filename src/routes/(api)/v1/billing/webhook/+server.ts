@@ -1,18 +1,19 @@
 // =============================================================================
-// src/routes/api/billing/webhook/+server.ts
+// src/routes/(api)/v1/billing/webhook/+server.ts
 // =============================================================================
-// POST /api/billing/webhook
+// POST /v1/billing/webhook  (api.foundiq.nl/v1/billing/webhook)
 //
 // Receives all payment status updates from Mollie.
 // Mollie sends: { id: 'tr_xxxxx' } — we fetch the full payment ourselves.
 //
+// PUBLIC route — no session required. Mollie calls this from their servers.
+// Security: Mollie does not sign webhooks — verification is done by fetching
+// the payment directly from their API (if we can get it, it's legitimate).
+//
 // This endpoint MUST return 200 quickly — Mollie will retry on non-200.
 // All heavy processing is fire-and-forget after returning 200.
 //
-// Mollie retries on failure: 5min, 10min, 30min, 1h, 2h, 4h, 8h, 16h, 24h
-//
-// Security: Mollie does not sign webhooks — verification is done by fetching
-// the payment directly from their API (if we can get it, it's legitimate).
+// Mollie retry schedule on failure: 5min, 10min, 30min, 1h, 2h, 4h, 8h, 16h, 24h
 // =============================================================================
 
 import type { RequestHandler } from '@sveltejs/kit';
@@ -20,7 +21,6 @@ import { bus }                  from '$lib/server/framework/services/bus/BusServ
 import type { MollieService }   from '$lib/server/services/payment/MollieService';
 
 export const POST: RequestHandler = async ({ request }) => {
-  // Parse the form-encoded body Mollie sends
   let paymentId: string | null = null;
 
   try {
@@ -36,7 +36,6 @@ export const POST: RequestHandler = async ({ request }) => {
       paymentId  = body?.id ?? null;
     }
   } catch {
-    // Return 200 even on parse error — Mollie will retry otherwise
     console.error('[billing/webhook] Failed to parse webhook body');
     return new Response('ok', { status: 200 });
   }
@@ -60,7 +59,6 @@ async function processWebhook(paymentId: string): Promise<void> {
     await mollie.handleWebhook(paymentId);
     console.log(`[billing/webhook] Processed payment: ${paymentId}`);
   } catch (err) {
-    // Log but don't throw — the 200 was already sent
     console.error(`[billing/webhook] handleWebhook failed for ${paymentId}:`, err);
   }
 }

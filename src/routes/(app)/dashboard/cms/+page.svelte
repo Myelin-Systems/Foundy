@@ -1,4 +1,4 @@
-<!-- routes/dashboard/cms/+page.svelte -->
+<!-- src/routes/dashboard/cms/+page.svelte -->
 <script lang="ts">
   import '$lib/cms/cms.css';
   import { page }          from '$app/state';
@@ -35,10 +35,24 @@
     section:            NavSection;
     planSlug:           string;
     planName:           string;
+    subscription: {
+      status:               string;
+      current_period_end:   string | null;
+      cancel_at_period_end: boolean;
+      plan: { slug: string; name: string };
+    } | null;
+    orgBilling: {
+      billing_name:        string | null;
+      billing_country:     string | null;
+      billing_address:     string | null;
+      billing_postal_code: string | null;
+      billing_city:        string | null;
+      vat_number:          string | null;
+    } | null;
   }
 
   const { data }: { data: PageData } = $props();
-  console.log('CMS Page data:', data);
+
   const siteId = $derived(
     page.url.searchParams.get('site') ?? data.activeSiteId ?? ''
   );
@@ -76,7 +90,6 @@
       page.url.searchParams.set('col', next ? next.id : '');
     }
   }
-  console.log('Page data:', data);
 </script>
 
 <svelte:head><title>CMS — Pando</title></svelte:head>
@@ -123,10 +136,10 @@
           posts={data.posts}
         />
       {:else if section === 'api'}
-        <APIView 
-          siteId={siteId} 
-          publicToken={data.publicToken} 
-          secretToken={data.secretToken} 
+        <APIView
+          siteId={siteId}
+          publicToken={data.publicToken}
+          secretToken={data.secretToken}
         />
       {:else if section === 'settings'}
         <SettingsView
@@ -135,6 +148,8 @@
           siteName={data.activeSiteName}
           siteDomain={data.activeSiteDomain}
           usage={data.usage}
+          subscription={data.subscription}
+          orgBilling={data.orgBilling}
         />
       {/if}
     </main>

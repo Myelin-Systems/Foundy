@@ -18,7 +18,7 @@ import { OrgService }         from '$lib/server/services/organisation/OrgService
 
 export class OrganisationAdapter implements IAdapter {
   readonly name     = 'organisation-adapter';
-  readonly version  = '1.0.0';
+  readonly version  = '1.2.1';
   readonly tags     = ['organisation'];
   readonly requires = ['db'];
   readonly schema: AdapterSchema = organisationSchema;

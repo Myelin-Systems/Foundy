@@ -158,7 +158,7 @@
     <section class="api__section">
       <h2 class="api__section-title">Base URL</h2>
       <div class="api__code-block">
-        <span class="api__code cms-mono">https://api.foundiq.io/v1</span>
+        <span class="api__code cms-mono">https://api.foundiq.nl/v1</span>
       </div>
     </section>
 

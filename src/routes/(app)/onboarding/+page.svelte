@@ -13,9 +13,8 @@
   const maxRows = Math.max(...PLAN_GROUPS.map(g => g.ids.length));
 
   // ── Step state ─────────────────────────────────────────────────────────────
-  let step     = $state(data.hasOrg ? 2 : 1);
-  // Progress should show 100% when on step 3 OR when skipping to dashboard
- 
+  let step = $state(data.hasOrg ? 2 : 1);
+
   // ── Step 1 — Organisation ──────────────────────────────────────────────────
   let orgName   = $state('');
   let orgSaving = $state(false);
@@ -40,8 +39,20 @@
 
   // ── Step 2 — Plan ──────────────────────────────────────────────────────────
   let selectedPlan = $state('cms_starter');
-  const totalSteps = $derived(can(selectedPlan, 'cms' ) ? 3 : 2);
-  let progress = $derived(Math.round((step / totalSteps) * 100));
+
+  const isPaidPlan  = $derived((planById[selectedPlan]?.price_month ?? 0) > 0);
+
+  // totalSteps:
+  //   Social-only plan  → 2 (org + plan, then dashboard)
+  //   Free CMS plan     → 3 (org + plan + site)
+  //   Paid CMS plan     → 4 (org + plan + billing + site)
+  const totalSteps = $derived(
+    !can(selectedPlan, 'cms') ? 2 :
+    isPaidPlan                ? 4 :
+    3
+  );
+
+  const progress = $derived(Math.round((step / totalSteps) * 100));
 
   function fmtPrice(p: Plan): string {
     if (p.price_month === 0)    return 'Free';
@@ -49,17 +60,81 @@
     return `$${p.price_month}/mo`;
   }
 
-  function confirmPlan() { 
+  function confirmPlan() {
     const hasCms = can(selectedPlan, 'cms');
     if (!hasCms) {
-      // Social-only — no site needed, go straight to dashboard
       goto('/dashboard/cms');
       return;
-    }    
-    step = 3; 
+    }
+    step = 3;  // billing step for paid, site step for free — template differentiates
   }
 
-  // ── Step 3 — First site ────────────────────────────────────────────────────
+  // ── Step 3 — Billing info (paid plans only) ────────────────────────────────
+  let billingName    = $state('');
+  let billingCountry = $state('');
+  let billingAddress = $state('');
+  let billingPostal  = $state('');
+  let billingCity    = $state('');
+  let vatNumber      = $state('');
+  let billingSaving  = $state(false);
+  let billingError   = $state('');
+
+  // Live VAT feedback from API
+  // Replace the static derived hints with API-driven ones
+  let vatRate:       number | null = $state(null);
+  let reverseCharge: boolean       = $state(false);
+  let vatHintLoading: boolean      = $state(false);
+
+  // Call this whenever country or vatNumber changes
+  async function refreshVatHint() {
+    if (!billingCountry) { vatRate = null; return; }
+    vatHintLoading = true;
+    try {
+      const res  = await fetch('/api/org/billing/vat-preview', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          billing_country: billingCountry,
+          vat_number:      vatNumber.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        vatRate       = json.vatRate;
+        reverseCharge = json.reverseCharge;
+      }
+    } finally { vatHintLoading = false; }
+  }
+
+  // Trigger on changes
+  $effect(() => { billingCountry; vatNumber; refreshVatHint(); });
+
+  async function saveBilling() {
+    if (!billingCountry.trim()) { billingError = 'Country is required.'; return; }
+    billingSaving = true; billingError = '';
+    try {
+      const res  = await fetch('/api/org/billing', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          billing_name:        billingName.trim()    || null,
+          billing_country:     billingCountry.trim().toUpperCase(),
+          billing_address:     billingAddress.trim() || null,
+          billing_postal_code: billingPostal.trim()  || null,
+          billing_city:        billingCity.trim()    || null,
+          vat_number:          vatNumber.trim()      || null,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) { billingError = json.message; return; }
+      vatRate       = json.vatRate;
+      reverseCharge = json.reverseCharge;
+      step = 4;
+    } catch { billingError = 'Network error. Please try again.'; }
+    finally  { billingSaving = false; }
+  }
+
+  // ── Step 3/4 — First site ──────────────────────────────────────────────────
   let siteName   = $state('');
   let siteSlug   = $state('');
   let siteSaving = $state(false);
@@ -80,6 +155,31 @@
       });
       const json = await res.json();
       if (!json.ok) { siteError = json.message; return; }
+
+      // Paid plan → redirect to Mollie checkout
+      const plan = planById[selectedPlan];
+      if (plan && (plan.price_month ?? 0) > 0) {
+        const checkoutRes  = await fetch('/api/billing/checkout', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ planSlug: selectedPlan, billingCycle: 'month' }),
+        });
+        const checkoutJson = await checkoutRes.json();
+
+        if (checkoutJson.ok) {
+          window.location.href = checkoutJson.checkoutUrl;
+          return;
+        }
+        // BILLING_INCOMPLETE shouldn't happen here since we already collected it in step 3,
+        // but handle it gracefully just in case
+        if (checkoutJson.code === 'BILLING_INCOMPLETE') {
+          step = 3;
+          billingError = 'Billing details are required before checkout.';
+          return;
+        }
+        console.error('[onboarding] Checkout failed:', checkoutJson.message);
+      }
+
       goto(`/dashboard/cms?site=${json.site.id}`);
     } catch { siteError = 'Network error. Please try again.'; }
     finally  { siteSaving = false; }
@@ -103,21 +203,24 @@
       <span>Foundiq</span>
     </div>
 
+    <!-- Dynamic step indicator -->
     <div class="ob__steps">
-      {#each [1,2,3] as s}
+      {#each Array.from({ length: totalSteps }, (_, i) => i + 1) as s}
         <div class="ob__step" class:ob__step--done={step > s} class:ob__step--active={step === s}>
           {#if step > s}
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           {:else}{s}{/if}
         </div>
-        {#if s < 3}<div class="ob__step-line" class:ob__step-line--done={step > s}></div>{/if}
+        {#if s < totalSteps}
+          <div class="ob__step-line" class:ob__step-line--done={step > s}></div>
+        {/if}
       {/each}
     </div>
 
-    <!-- ── Step 1 ──────────────────────────────────────────────────────────── -->
+    <!-- ── Step 1 — Organisation ───────────────────────────────────────────── -->
     {#if step === 1}
       <div class="ob__card ob__card--anim">
-        <div class="ob__step-label">Step 1 of 3</div>
+        <div class="ob__step-label">Step 1 of {totalSteps}</div>
         <h1 class="ob__title">Name your organisation</h1>
         <p class="ob__sub">This is your workspace — everything you build lives under it. You can change it later.</p>
         {#if orgError}<div class="ob__error">{orgError}</div>{/if}
@@ -135,34 +238,25 @@
         </div>
       </div>
 
-    <!-- ── Step 2 ──────────────────────────────────────────────────────────── -->
+    <!-- ── Step 2 — Plan ──────────────────────────────────────────────────── -->
     {:else if step === 2}
       <div class="ob__card ob__card--xl ob__card--anim">
-        <div class="ob__step-label">Step 2 of 3</div>
+        <div class="ob__step-label">Step 2 of {totalSteps}</div>
         <h1 class="ob__title">Choose your plan</h1>
         <p class="ob__sub">Start free — upgrade anytime from settings. Paid plans launch soon.</p>
 
-        <!--
-          Flat grid: row 1 = headers, rows 2–N = plans by tier position.
-          All cells in the same grid row auto-match height — no flex column tricks needed.
-          Empty cells (Agency only has 2 tiers) get an invisible placeholder.
-        -->
         <div class="ob__grid">
-
-          <!-- Row 1: column headers -->
           {#each PLAN_GROUPS as group}
             <div class="ob__col-header">{group.label}</div>
           {/each}
 
-          <!-- Rows 2–N: plans by row index across all columns -->
           {#each Array.from({ length: maxRows }, (_, i) => i) as rowIdx}
             {#each PLAN_GROUPS as group}
               {#if group.ids[rowIdx]}
                 {@const planId     = group.ids[rowIdx]}
                 {@const plan       = planById[planId]}
                 {@const isSelected = selectedPlan === planId}
-                {@const isPaid     = (plan.price_month ?? 0) > 0}
-                {@const isSocial   = can(planId, 'social')}
+                {@const isSocial   = !can(planId, 'cms')}
 
                 <button
                   class="ob__plan"
@@ -199,12 +293,10 @@
                 </button>
 
               {:else}
-                <!-- Empty cell — keeps grid alignment intact -->
                 <div class="ob__plan-empty"></div>
               {/if}
             {/each}
           {/each}
-
         </div>
 
         <button class="ob__btn ob__btn--full" onclick={confirmPlan}>
@@ -212,10 +304,129 @@
         </button>
       </div>
 
-    <!-- ── Step 3 ──────────────────────────────────────────────────────────── -->
-    {:else if step === 3}
+    <!-- ── Step 3 — Billing info (paid plans only) ────────────────────────── -->
+    {:else if step === 3 && isPaidPlan}
       <div class="ob__card ob__card--anim">
-        <div class="ob__step-label">Step 3 of 3</div>
+        <div class="ob__step-label">Step 3 of {totalSteps}</div>
+        <h1 class="ob__title">Billing details</h1>
+        <p class="ob__sub">Required for your invoice. Agencies with an EU VAT number pay 0% VAT (reverse charge).</p>
+        {#if billingError}<div class="ob__error">{billingError}</div>{/if}
+        <div class="ob__form">
+
+          <div class="ob__field">
+            <label class="ob__label" for="b-name">
+              Legal name <span class="ob__label-hint">company or your full name</span>
+            </label>
+            <input id="b-name" class="ob__input" type="text" placeholder="Acme B.V."
+              bind:value={billingName} disabled={billingSaving} />
+          </div>
+
+          <div class="ob__field">
+            <label class="ob__label" for="b-country">Country <span class="ob__label-hint">required</span></label>
+            <select id="b-country" class="ob__input" bind:value={billingCountry}
+              disabled={billingSaving} oninput={() => billingError = ''}>
+              <option value="">Select country…</option>
+              <optgroup label="EU">
+                <option value="NL">Netherlands</option>
+                <option value="BE">Belgium</option>
+                <option value="DE">Germany</option>
+                <option value="FR">France</option>
+                <option value="AT">Austria</option>
+                <option value="DK">Denmark</option>
+                <option value="ES">Spain</option>
+                <option value="FI">Finland</option>
+                <option value="IE">Ireland</option>
+                <option value="IT">Italy</option>
+                <option value="LU">Luxembourg</option>
+                <option value="PL">Poland</option>
+                <option value="PT">Portugal</option>
+                <option value="SE">Sweden</option>
+                <option value="CZ">Czech Republic</option>
+                <option value="HR">Croatia</option>
+                <option value="HU">Hungary</option>
+                <option value="RO">Romania</option>
+                <option value="SK">Slovakia</option>
+                <option value="SI">Slovenia</option>
+                <option value="BG">Bulgaria</option>
+                <option value="CY">Cyprus</option>
+                <option value="EE">Estonia</option>
+                <option value="GR">Greece</option>
+                <option value="LT">Lithuania</option>
+                <option value="LV">Latvia</option>
+                <option value="MT">Malta</option>
+              </optgroup>
+              <optgroup label="Other">
+                <option value="GB">United Kingdom</option>
+                <option value="US">United States</option>
+                <option value="CA">Canada</option>
+                <option value="AU">Australia</option>
+                <option value="OTHER">Other</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="ob__field">
+            <label class="ob__label" for="b-vat">
+              EU VAT number <span class="ob__label-hint">optional — B2B customers</span>
+            </label>
+            <input id="b-vat" class="ob__input" type="text" placeholder="NL123456789B01"
+              bind:value={vatNumber} disabled={billingSaving}
+              oninput={() => billingError = ''} />
+            {#if vatNumber.trim() && billingCountry}
+              <span class="ob__vat-hint">
+                ✓ Reverse charge applies — you'll be invoiced at 0% VAT (BTW verlegd)
+              </span>
+            {:else if billingCountry && !vatNumber.trim()}
+              {#if vatHintLoading}
+  <span class="ob__vat-hint">Checking…</span>
+{:else if reverseCharge}
+  <span class="ob__vat-hint">
+    ✓ Reverse charge — 0% VAT (BTW verlegd)
+  </span>
+{:else if vatRate !== null && vatRate > 0}
+  <span class="ob__vat-hint ob__vat-hint--tax">
+    {vatRate}% VAT will be applied
+  </span>
+{:else if vatRate === 0 && billingCountry}
+  <span class="ob__vat-hint">
+    0% VAT — outside EU
+  </span>
+{/if}
+            {/if}
+          </div>
+
+          <div class="ob__field">
+            <label class="ob__label" for="b-address">
+              Address <span class="ob__label-hint">optional — printed on invoice</span>
+            </label>
+            <input id="b-address" class="ob__input" type="text" placeholder="Herengracht 1"
+              bind:value={billingAddress} disabled={billingSaving} />
+          </div>
+
+          <div class="ob__field ob__field--row">
+            <div class="ob__field">
+              <label class="ob__label" for="b-postal">Postal code</label>
+              <input id="b-postal" class="ob__input" type="text" placeholder="1017 BN"
+                bind:value={billingPostal} disabled={billingSaving} />
+            </div>
+            <div class="ob__field ob__field--grow">
+              <label class="ob__label" for="b-city">City</label>
+              <input id="b-city" class="ob__input" type="text" placeholder="Amsterdam"
+                bind:value={billingCity} disabled={billingSaving} />
+            </div>
+          </div>
+
+          <button class="ob__btn" onclick={saveBilling} disabled={billingSaving || !billingCountry.trim()}>
+            {#if billingSaving}<span class="ob__spinner"></span>{/if}
+            {billingSaving ? 'Saving…' : 'Continue →'}
+          </button>
+        </div>
+      </div>
+
+    <!-- ── Step 3 (free) or Step 4 (paid) — First site ───────────────────── -->
+    {:else if (step === 3 && !isPaidPlan) || step === 4}
+      <div class="ob__card ob__card--anim">
+        <div class="ob__step-label">Step {step} of {totalSteps}</div>
         <h1 class="ob__title">Create your first site</h1>
         <p class="ob__sub">A site holds your collections, entries and media. You can create more later.</p>
         {#if siteError}<div class="ob__error">{siteError}</div>{/if}
@@ -302,10 +513,14 @@
   .ob__sub        { font-size: 13px; color: var(--text-dim); line-height: 1.6; margin-bottom: 24px; }
   .ob__error      { padding: 10px 14px; margin-bottom: 16px; background: var(--error-dim); border: 1px solid rgba(248,113,113,0.2); border-radius: var(--r); color: var(--error); font-size: 13px; }
 
-  .ob__form  { display: flex; flex-direction: column; gap: 16px; }
-  .ob__field { display: flex; flex-direction: column; gap: 6px; }
-  .ob__label { font-size: 12px; font-weight: 600; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
-  .ob__label-hint { font-weight: 400; opacity: 0.7; font-size: 11px; }
+  .ob__form           { display: flex; flex-direction: column; gap: 16px; }
+  .ob__field          { display: flex; flex-direction: column; gap: 6px; }
+  .ob__field--row     { flex-direction: row; gap: 10px; align-items: flex-start; }
+  .ob__field--grow    { flex: 1; }
+  .ob__label          { font-size: 12px; font-weight: 600; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .ob__label-hint     { font-weight: 400; opacity: 0.7; font-size: 11px; }
+  .ob__vat-hint       { font-size: 11px; color: #00cc7a; margin-top: 2px; }
+  .ob__vat-hint--tax  { color: var(--amber); }
 
   .ob__input {
     padding: 10px 14px; background: var(--bg); border: 1px solid var(--border-hi);
@@ -334,49 +549,27 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .ob__spinner { width: 14px; height: 14px; border: 2px solid rgba(6,6,15,0.3); border-top-color: #06060f; border-radius: 50%; animation: spin 0.6s linear infinite; flex-shrink: 0; }
 
-  /* ────────────────────────────────────────────────────────────────────────
-     Flat grid — 4 columns, N rows.
-     Row 1  = column headers.
-     Row 2+ = plan cards by tier position.
-     Because all cards in the same grid row share the same row track,
-     they automatically match height. No flex tricks needed.
-  ──────────────────────────────────────────────────────────────────────── */
   .ob__grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    margin-bottom: 4px;
-    /* Each row auto-sizes to its tallest cell */
-    align-items: stretch;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 10px; margin-bottom: 4px; align-items: stretch;
   }
-
-  /* Column headers — row 1 */
   .ob__col-header {
     font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
     text-transform: uppercase; color: var(--amber);
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(245,158,11,0.25);
+    padding-bottom: 6px; border-bottom: 1px solid rgba(245,158,11,0.25);
   }
-
-  /* Plan card — fills its grid cell height */
   .ob__plan {
-    position: relative;
-    display: flex; flex-direction: column;
+    position: relative; display: flex; flex-direction: column;
     padding: 14px; border-radius: var(--r-lg);
     background: var(--bg); border: 2px solid var(--border);
     text-align: left; cursor: pointer; transition: all 0.15s;
-    font-family: inherit; width: 100%;
-    /* height: 100% makes each card fill its row track */
-    height: 100%;
+    font-family: inherit; width: 100%; height: 100%;
   }
   .ob__plan:hover:not(:disabled)  { border-color: var(--border-hi); }
   .ob__plan--selected              { border-color: var(--amber); background: rgba(245,158,11,0.05); }
   .ob__plan--paid                  { opacity: 0.4; cursor: not-allowed; }
-
-  /* Empty placeholder — same size as a card cell, invisible */
   .ob__plan-empty { height: 100%; min-height: 40px; }
 
-  /* Badges */
   .ob__badge {
     position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
     font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
@@ -388,28 +581,18 @@
   .ob__plan-name    { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
   .ob__plan-price   { font-size: 18px; font-weight: 800; color: var(--amber); letter-spacing: -0.02em; margin-bottom: 4px; }
   .ob__plan-tagline { font-size: 10px; color: var(--text-dim); line-height: 1.4; margin-bottom: 10px; }
-
-  /* Push features to bottom of card */
-  .ob__plan-features {
-    list-style: none; display: flex; flex-direction: column; gap: 4px;
-    margin-top: auto;
-  }
+  .ob__plan-features { list-style: none; display: flex; flex-direction: column; gap: 4px; margin-top: auto; }
   .ob__plan-features li  { display: flex; align-items: flex-start; gap: 5px; font-size: 10px; color: var(--text-dim); line-height: 1.4; }
   .ob__plan-features svg { color: var(--amber); flex-shrink: 0; margin-top: 2px; }
-
-  /* Selected checkmark */
   .ob__plan-check {
-    position: absolute; top: 8px; right: 8px;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: var(--amber); color: #06060f;
-    display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--amber); color: #06060f; display: flex; align-items: center; justify-content: center;
   }
 
-  @media (max-width: 760px) {
-    .ob__grid { grid-template-columns: repeat(2, 1fr); }
-  }
+  @media (max-width: 760px) { .ob__grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 480px) {
     .ob__grid      { grid-template-columns: 1fr; }
     .ob__card--xl  { padding: 24px 16px; }
+    .ob__field--row { flex-direction: column; }
   }
 </style>

@@ -1,10 +1,11 @@
 // =============================================================================
-// src/routes/api/billing/plans/+server.ts
+// src/routes/(api)/v1/billing/plans/+server.ts
 // =============================================================================
-// GET /api/billing/plans
+// GET /v1/billing/plans  (api.foundiq.nl/v1/billing/plans)
 //
-// Public — no auth required.
-// Returns all active plans. Used by landing page pricing section and onboarding.
+// PUBLIC — no auth required.
+// Returns all active plans. Used by the landing page pricing section
+// and the onboarding plan picker.
 //
 // Success: { ok: true, plans: Plan[] }
 // =============================================================================
@@ -22,15 +23,16 @@ export const GET: RequestHandler = async () => {
     return json({
       ok: true,
       plans: plans.map(p => ({
-        slug:             p.slug,
-        name:             p.name,
-        price_cents:      p.price_cents,
-        currency:         p.currency,
-        interval:         p.interval,
-        site_limit:       p.site_limit,
-        api_calls_limit:  p.api_calls_limit,
-        storage_mb:       p.storage_mb,
-        features:         p.features,
+        slug:              p.slug,
+        name:              p.name,
+        price_month_cents: p.price_month_cents,
+        price_year_cents:  p.price_year_cents,
+        currency:          'EUR',
+        interval:          p.interval,
+        site_limit:        p.site_limit,
+        api_calls_limit:   p.api_calls_limit,
+        storage_mb:        p.storage_mb,
+        features:          p.features,
       })),
     });
 
@@ -38,7 +40,7 @@ export const GET: RequestHandler = async () => {
     console.error('[billing/plans] Error:', err);
     return json(
       { ok: false, code: 'INTERNAL_ERROR', message: 'Failed to load plans.' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 };

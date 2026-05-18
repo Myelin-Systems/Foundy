@@ -461,10 +461,10 @@ const { data } = $props();
           {/each}
         </div> -->
         {#if data.session}
-          <a href="/dashboard/cms" class="nav__btn nav__btn--primary">{t.nav_dashboard}</a>
+          <a href="https://app.foundiq.nl/dashboard/cms" class="nav__btn nav__btn--primary">{t.nav_dashboard}</a>
         {:else}
-          <a href="/login"    class="nav__btn nav__btn--ghost">{t.nav_signin}</a>
-          <a href="/register" class="nav__btn nav__btn--primary">{t.nav_start}</a>
+          <a href="https://app.foundiq.nl/login"    class="nav__btn nav__btn--ghost">{t.nav_signin}</a>
+          <a href="https://app.foundiq.nl/register" class="nav__btn nav__btn--primary">{t.nav_start}</a>
         {/if}
       </div>
     </div>
@@ -492,7 +492,7 @@ const { data } = $props();
         </h1>
         <p class="hero__sub">{t.hero_sub}</p>
         <div class="hero__actions">
-          <a href="/register" class="hero__btn hero__btn--primary">
+          <a href="https://app.foundiq.nl/register" class="hero__btn hero__btn--primary">
             {t.cta_primary}
             <span class="hero__btn-arrow">→</span>
           </a>
@@ -684,7 +684,7 @@ const { data } = $props();
           <li>Public + secret API keys</li>
           <li>Community support</li>
         </ul>
-        <a href="/register" class="pricing__cta">{t.price_cta}</a>
+        <a href="https://app.foundiq.nl/register" class="pricing__cta">{t.price_cta}</a>
         <div class="pricing__paid-note">{t.price_paid}</div>
       </div>
     </div>
@@ -704,14 +704,14 @@ const { data } = $props();
       </h2>
       <p class="cta__sub">{t.final_sub}</p>
       <div class="cta__actions">
-        <a href="/register" class="cta__btn">
+        <a href="https://app.foundiq.nl/register" class="cta__btn">
           {t.final_cta}
           <span class="cta__btn-arrow">→</span>
         </a>
       </div>
       {#if !data.session}
         <div class="cta__login">
-          <a href="/login">{t.final_login}</a>
+          <a href="https://app.foundiq.nl/login">{t.final_login}</a>
         </div>
       {/if}
     </div>

@@ -8,7 +8,7 @@
 //
 // .env:
 //   EMAIL_PROVIDER=resend            # or 'smtp'
-//   EMAIL_FROM=Foundiq <noreply@foundiq.io>
+//   EMAIL_FROM=Foundiq <noreply@foundiq.nl>
 //
 //   # Resend:
 //   RESEND_API_KEY=re_xxxxx
@@ -21,14 +21,15 @@
 // =============================================================================
 
 import type { IService }             from '../../framework/services/IServices';
-import type { InvoiceEmailData }     from './templates/invoice';
-import { renderInvoiceEmail }        from './templates/invoice';
+import type { InvoiceEmailData }     from '$lib/server/services/email/templates/invoice';
+import { renderInvoiceEmail }        from '$lib/server/services/email/templates/invoice';
+
 
 export type EmailProvider = 'resend' | 'smtp';
 
 export interface EmailServiceConfig {
   provider:  EmailProvider;
-  from:      string;                // e.g. "Foundiq <noreply@foundiq.io>"
+  from:      string;                // e.g. "Foundiq <noreply@foundiq.nl>"
 
   // Resend
   resendApiKey?: string;
@@ -52,7 +53,7 @@ export interface SendResult {
 export class EmailService implements IService {
 
   readonly name    = 'email';
-  readonly version = '1.0.0';
+  readonly version = '1.1.3';
   readonly tags    = ['core', 'email'];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,10 +118,13 @@ export class EmailService implements IService {
    * Send a payment confirmation + invoice email.
    * Called by MollieService after handlePaymentPaid().
    */
-  async sendInvoice(data: InvoiceEmailData): Promise<SendResult> {
-    const { subject, html, text } = renderInvoiceEmail(data);
+  // src/lib/server/services/email/EmailService.ts
+
+  // Change the method signature from the old flat params to:
+  async sendInvoice(params: InvoiceEmailData): Promise<SendResult> {
+    const { subject, html, text } = renderInvoiceEmail(params);
     return this.send({
-      to:      data.toEmail,
+      to:      params.toEmail,   // string — matches send() signature
       subject,
       html,
       text,

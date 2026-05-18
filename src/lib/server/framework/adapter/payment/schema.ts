@@ -4,6 +4,9 @@
 // Tables owned by the PaymentAdapter.
 // Tables: plans, subscriptions, invoices
 //
+// Extensions: adds billing columns to the organisations table owned by
+// OrganisationAdapter — billing address, VAT, country etc.
+//
 // Plans are seeded from src/lib/shared/plans.ts on every boot (upsert by slug).
 // The slug column IS the PlanId from shared/plans.ts — the two are always in sync.
 // =============================================================================
@@ -14,9 +17,6 @@ export const paymentSchema: AdapterSchema = {
   tables: [
 
     // ── plans ─────────────────────────────────────────────────────────────────
-    // Source of truth: src/lib/shared/plans.ts
-    // This table is a DB mirror — seeded/updated on every boot via upsert.
-    // Never edit rows manually; change shared/plans.ts instead.
     {
       name: 'plans', timestamps: true,
       columns: [
@@ -24,12 +24,10 @@ export const paymentSchema: AdapterSchema = {
         { name: 'slug',              type: 'varchar', length: 64,  notNull: true, unique: true },
         { name: 'name',              type: 'varchar', length: 128, notNull: true },
         { name: 'tagline',           type: 'varchar', length: 255, notNull: true },
-        // Prices in euro cents. NULL = enterprise / contact-us.
         { name: 'price_month_cents', type: 'integer' },
         { name: 'price_year_cents',  type: 'integer' },
         { name: 'highlighted',       type: 'boolean', notNull: true, default: 'false' },
         { name: 'active',            type: 'boolean', notNull: true, default: 'true'  },
-        // JSONB — mirrors the Plan interface from shared/plans.ts exactly
         { name: 'features',          type: 'jsonb',   notNull: true, default: "'[]'::jsonb" },
         { name: 'limits',            type: 'jsonb',   notNull: true, default: "'{}'::jsonb" },
         { name: 'bullets',           type: 'jsonb',   notNull: true, default: "'[]'::jsonb" },
@@ -45,12 +43,12 @@ export const paymentSchema: AdapterSchema = {
     {
       name: 'subscriptions', timestamps: true,
       columns: [
-        { name: 'id',      type: 'uuid', primaryKey: true, default: 'gen_random_uuid()' },
-        { name: 'org_id',  type: 'uuid', notNull: true, unique: true,
+        { name: 'id',     type: 'uuid', primaryKey: true, default: 'gen_random_uuid()' },
+        { name: 'org_id', type: 'uuid', notNull: true, unique: true,
           references: { table: 'organisations', column: 'id', onDelete: 'CASCADE' } },
         { name: 'plan_id', type: 'uuid', notNull: true,
           references: { table: 'plans', column: 'id', onDelete: 'RESTRICT' } },
-        { name: 'status',  type: 'enum', notNull: true, default: "'free'",
+        { name: 'status', type: 'enum', notNull: true, default: "'free'",
           enumValues: ['free', 'pending', 'active', 'past_due', 'cancelled', 'expired'] },
         { name: 'mollie_customer_id',     type: 'varchar', length: 128 },
         { name: 'mollie_subscription_id', type: 'varchar', length: 128 },
@@ -70,19 +68,24 @@ export const paymentSchema: AdapterSchema = {
     },
 
     // ── invoices ──────────────────────────────────────────────────────────────
-    {
-      name: 'invoices', timestamps: true,
+    { name: 'invoices', timestamps: true,
       columns: [
-        { name: 'id',      type: 'uuid', primaryKey: true, default: 'gen_random_uuid()' },
-        { name: 'org_id',  type: 'uuid', notNull: true,
+        { name: 'id',     type: 'uuid', primaryKey: true, default: 'gen_random_uuid()' },
+        { name: 'org_id', type: 'uuid', notNull: true,
           references: { table: 'organisations', column: 'id', onDelete: 'CASCADE' } },
         { name: 'subscription_id', type: 'uuid',
           references: { table: 'subscriptions', column: 'id', onDelete: 'SET NULL' } },
         { name: 'mollie_payment_id',   type: 'varchar', length: 128, notNull: true, unique: true },
         { name: 'amount_cents',        type: 'integer',  notNull: true },
+        { name: 'subtotal_cents',      type: 'integer' },
+        { name: 'vat_rate_pct',        type: 'integer' },
+        { name: 'vat_amount_cents',    type: 'integer' },
+        { name: 'vat_reverse_charge',  type: 'boolean', notNull: true, default: 'false' },
+        { name: 'mollie_fee_cents',    type: 'integer' },
+        { name: 'net_revenue_cents',   type: 'integer' },
         { name: 'currency',            type: 'varchar',  length: 3, notNull: true, default: "'EUR'" },
-       { name: 'status', type: 'enum', notNull: true,
-  enumValues: ['open', 'paid', 'failed', 'cancelled', 'expired', 'refunded'] },
+        { name: 'status', type: 'enum', notNull: true,
+          enumValues: ['open', 'paid', 'failed', 'cancelled', 'expired', 'refunded'] },
         { name: 'paid_at',             type: 'timestamp' },
         { name: 'description',         type: 'text' },
         { name: 'mollie_checkout_url', type: 'text' },
@@ -91,6 +94,23 @@ export const paymentSchema: AdapterSchema = {
         { columns: ['org_id'],            unique: false },
         { columns: ['mollie_payment_id'], unique: true  },
         { columns: ['status'],            unique: false },
+      ],
+    },
+  ],
+
+  // ── Extensions ──────────────────────────────────────────────────────────────
+  // PaymentAdapter owns billing metadata — stored on the organisations row.
+  // Uses ADD COLUMN IF NOT EXISTS so it's safe to run on every boot.
+  extensions: [
+    {
+      table: 'organisations',
+      columns: [
+        { name: 'billing_name',        type: 'varchar', length: 255 },
+        { name: 'billing_country',     type: 'varchar', length: 2   },
+        { name: 'billing_address',     type: 'text'                 },
+        { name: 'billing_postal_code', type: 'varchar', length: 20  },
+        { name: 'billing_city',        type: 'varchar', length: 100 },
+        { name: 'vat_number',          type: 'varchar', length: 40  },
       ],
     },
   ],

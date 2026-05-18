@@ -5,7 +5,7 @@
 // Can be dropped into any project that needs multi-tenancy.
 //
 // Design:
-//   organisations  — a workspace/team/company. Has a plan for feature flagging.
+//   organisations  — a workspace/team/company. Has billing info for invoicing.
 //   org_members    — links users to organisations with a role.
 //
 // The auth adapter's users table is referenced but NOT modified.
@@ -24,17 +24,60 @@ export const organisationSchema: AdapterSchema = {
         { name: 'name',        type: 'varchar', length: 255, notNull: true },
         { name: 'slug',        type: 'varchar', length: 255, notNull: true, unique: true },
         // URL-safe identifier — auto-derived from name on create
-        // { name: 'plan',        type: 'varchar', length: 60,  notNull: true, default: "'starter'" },
-        // plan is a free varchar — validated by PlanService, not the DB
         { name: 'description', type: 'text' },
         { name: 'logo_url',    type: 'text' },
         { name: 'domain',      type: 'varchar', length: 255 },
         { name: 'white_label', type: 'boolean', notNull: true, default: 'false' },
         { name: 'meta',        type: 'jsonb',   default: "'{}'" },
         // application-specific extra data — adapters can store things here
+
+        // ── Billing / VAT ────────────────────────────────────────────────────
+        // Collected during onboarding before first paid checkout.
+        // Required by Dutch law to issue a legally compliant invoice.
+        {
+          name:   'billing_name',
+          type:   'varchar',
+          length: 255,
+          // Legal entity name — may differ from org display name.
+          // e.g. "Acme B.V." vs display name "Acme"
+        },
+        {
+          name:   'billing_country',
+          type:   'varchar',
+          length: 2,
+          // ISO 3166-1 alpha-2 (e.g. 'NL', 'DE', 'GB').
+          // Required before first checkout — enforced at application layer.
+          // Drives VAT logic: EU B2B vs EU B2C vs non-EU.
+        },
+        {
+          name:   'billing_address',
+          type:   'varchar',
+          length: 255,
+          // Street + number. Optional but printed on invoice when present.
+        },
+        {
+          name:   'billing_postal_code',
+          type:   'varchar',
+          length: 20,
+        },
+        {
+          name:   'billing_city',
+          type:   'varchar',
+          length: 100,
+        },
+        {
+          name:   'vat_number',
+          type:   'varchar',
+          length: 50,
+          // EU BTW-nummer (e.g. 'NL123456789B01').
+          // Presence = B2B customer → 0% VAT reverse charge applies.
+          // Absence  = B2C customer → Dutch 21% (below OSS €10k threshold).
+          // Non-EU billing_country + null = 0% no VAT.
+        },
       ],
       indexes: [
-        { columns: ['slug'], unique: true },
+        { columns: ['slug'],            unique: true  },
+        { columns: ['billing_country'], unique: false },
       ],
     },
 
@@ -51,6 +94,7 @@ export const organisationSchema: AdapterSchema = {
         // role is a free varchar — application defines what roles exist
         // common values: 'owner' | 'editor' | 'viewer'
         { name: 'joined_at', type: 'timestamp', notNull: true, default: 'NOW()' },
+        { name: 'deleted_at', type: 'timestamp', notNull: false, },
       ],
       indexes: [
         { columns: ['org_id', 'user_id'], unique: true },

@@ -189,7 +189,7 @@
               Current plan
             </button>
           {:else if isEnterprise}
-            <a class="pricing__btn pricing__btn--enterprise" href="mailto:hello@pando.io">
+            <a class="pricing__btn pricing__btn--enterprise" href="mailto:info@myelinsystems.com">
               Contact sales →
             </a>
           {:else}
@@ -216,7 +216,7 @@
     <span class="pricing__note-icon">🏢</span>
     <span>
       Need a custom setup?
-      <a href="mailto:hello@pando.io" class="pricing__note-link">Talk to us</a>
+      <a href="mailto:info@myelinsystems.com" class="pricing__note-link">Talk to us</a>
       — we'll build a plan around your infrastructure and volume.
     </span>
   </div>

@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     myelin
+      POSTGRES_PASSWORD: myelin
+      POSTGRES_DB:       myelin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    networks:
+      - internal
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+        sleep 3;
+        mc alias set local http://minio:9000 minioadmin minioadmin123;
+        mc mb --ignore-existing local/foundiq-media;
+        mc anonymous set public local/foundiq-media;
+        echo 'Bucket ready.';
+      "
+    networks:
+      - internal
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: foundiq_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL:      postgres://myelin:myelin@db:5432/myelin
+      DATABASE_PROVIDER: postgres
+      MINIO_ENDPOINT:    minio
+      MINIO_PORT:        9000
+      MINIO_USE_SSL:     false
+      MINIO_ACCESS_KEY:  minioadmin
+      MINIO_SECRET_KEY:  minioadmin123
+      MINIO_BUCKET:      foundiq-media
+      MINIO_PUBLIC_URL:  https://app.foundiq.nl/media
+    networks:
+      - internal
+      - web
+    depends_on:
+      - db
+      - minio
+
+networks:
+  internal:
+    driver: bridge
+  web:
+    external: true
+    name: server_web
+
+volumes:
+  postgres_data:
+  minio_data:

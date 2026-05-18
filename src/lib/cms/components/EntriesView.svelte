@@ -6,7 +6,7 @@
   import StockBadge        from './StockBadge.svelte';
   import Modal             from './Modal.svelte';
   import ConfirmDialog     from '../dialog/ConfirmDialog.svelte';
-  import EntryForm         from '../forms/EntryForm.svelte';
+  import EntryForm         from '$lib/cms/forms/Entryform.svelte';
   import FieldBuilder      from './FieldBuilder.svelte';
   import type { Collection, Entry } from '../types';
 

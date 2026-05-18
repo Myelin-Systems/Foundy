@@ -1,8 +1,8 @@
 // =============================================================================
-// src/routes/api/billing/portal/+server.ts
+// src/routes/(app)/api/billing/portal/+server.ts
 // =============================================================================
 // GET    /api/billing/portal  → current subscription + plan details
-// DELETE /api/billing/portal  → cancel subscription (at period end)
+// DELETE /api/billing/portal  → cancel subscription (at period end by default)
 // POST   /api/billing/portal  → change plan
 // =============================================================================
 
@@ -27,7 +27,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
     const sub    = await mollie.getOrCreateSubscription(session.oid);
 
     return json({
-      ok:  true,
+      ok: true,
       subscription: {
         status:               sub.status,
         cancel_at_period_end: sub.cancel_at_period_end,
@@ -35,15 +35,16 @@ export const GET: RequestHandler = async ({ cookies }) => {
         cancelled_at:         sub.cancelled_at,
       },
       plan: {
-        slug:             sub.plan.slug,
-        name:             sub.plan.name,
-        price_cents:      sub.plan.price_cents,
-        currency:         sub.plan.currency,
-        interval:         sub.plan.interval,
-        site_limit:       sub.plan.site_limit,
-        api_calls_limit:  sub.plan.api_calls_limit,
-        storage_mb:       sub.plan.storage_mb,
-        features:         sub.plan.features,
+        slug:              sub.plan.slug,
+        name:              sub.plan.name,
+        price_month_cents: sub.plan.price_month_cents,   // fixed: was price_cents
+        price_year_cents:  sub.plan.price_year_cents,    // fixed: was missing
+        currency:          'EUR',
+        interval:          sub.plan.interval,
+        site_limit:        sub.plan.site_limit,
+        api_calls_limit:   sub.plan.api_calls_limit,
+        storage_mb:        sub.plan.storage_mb,
+        features:          sub.plan.features,
       },
     });
 
@@ -102,7 +103,6 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     );
 
     if (!result) {
-      // Downgraded to free — no checkout needed
       return json({ ok: true, downgraded: true });
     }
 
@@ -119,12 +119,12 @@ function handlePaymentError(err: unknown): Response {
   if (err instanceof PaymentError) {
     return json(
       { ok: false, code: err.code, message: err.message },
-      { status: err.status }
+      { status: err.status },
     );
   }
   console.error('[billing/portal] Unexpected error:', err);
   return json(
     { ok: false, code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.' },
-    { status: 500 }
+    { status: 500 },
   );
 }

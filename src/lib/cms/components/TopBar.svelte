@@ -3,7 +3,7 @@
   import { goto, invalidateAll } from '$app/navigation';
   import Icon                    from './Icon.svelte';
   import Modal                   from './Modal.svelte';
-  import SiteForm                from '../forms/SiteForm.svelte';
+  import SiteForm               from '$lib/cms/forms/Siteform.svelte'; 
   import { cmsTheme, toggleTheme } from '../theme.svelte';
   import type { Site }           from '../types';
 
